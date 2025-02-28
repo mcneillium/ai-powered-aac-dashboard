@@ -1,6 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { ref, onValue } from 'firebase/database'; // If using Firebase
+import { ref, onValue } from 'firebase/database';
 import { db } from '../firebaseConfig';
+import {
+  Container,
+  Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper
+} from '@mui/material';
 
 export default function Logs() {
   const [logs, setLogs] = useState([]);
@@ -16,26 +27,30 @@ export default function Logs() {
   }, []);
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>User Logs</h2>
-      <table style={{ marginTop: 20, borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th style={{ border: '1px solid #ccc', padding: 8 }}>Log ID</th>
-            <th style={{ border: '1px solid #ccc', padding: 8 }}>Action</th>
-            <th style={{ border: '1px solid #ccc', padding: 8 }}>Timestamp</th>
-          </tr>
-        </thead>
-        <tbody>
-          {logs.map(log => (
-            <tr key={log.id}>
-              <td style={{ border: '1px solid #ccc', padding: 8 }}>{log.id}</td>
-              <td style={{ border: '1px solid #ccc', padding: 8 }}>{log.action}</td>
-              <td style={{ border: '1px solid #ccc', padding: 8 }}>{log.timestamp}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Container sx={{ py: 4 }}>
+      <Typography variant="h4" gutterBottom>
+        User Logs
+      </Typography>
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow sx={{ backgroundColor: '#f2f2f2' }}>
+              <TableCell><strong>Log ID</strong></TableCell>
+              <TableCell><strong>Action</strong></TableCell>
+              <TableCell><strong>Timestamp</strong></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {logs.map((log) => (
+              <TableRow key={log.id}>
+                <TableCell>{log.id}</TableCell>
+                <TableCell>{log.action}</TableCell>
+                <TableCell>{log.timestamp}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Container>
   );
 }

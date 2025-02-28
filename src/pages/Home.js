@@ -1,14 +1,29 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { Container, Box, Typography, Button } from '@mui/material';
 
 export default function Home() {
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Caregiver Dashboard - Home</h1>
-      <nav>
-        <Link to="/caregivers" style={{ marginRight: 16 }}>Manage Caregivers</Link>
-        <Link to="/logs">View User Logs</Link>
-      </nav>
-    </div>
+    <Container sx={{ py: 4 }}>
+      <Typography variant="h3" component="h1" align="center" gutterBottom>
+        Caregiver Dashboard - Home
+      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 4 }}>
+        <Button 
+          variant="contained" 
+          component={Link} 
+          to="/caregivers"
+        >
+          Manage Caregivers
+        </Button>
+        <Button 
+          variant="outlined" 
+          component={Link} 
+          to="/logs"
+        >
+          View User Logs
+        </Button>
+      </Box>
+    </Container>
   );
 }
