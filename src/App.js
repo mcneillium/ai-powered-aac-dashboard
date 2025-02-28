@@ -1,12 +1,11 @@
 // src/App.js
-
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 import PrivateRoute from './PrivateRoute';
 import Login from './pages/Login';
 import Home from './pages/Home';
-import Caregivers from './pages/Caregivers';
+import Caregivers from './pages/Caregivers'; // import your caregiver page
 import Logs from './pages/Logs';
 
 function App() {
