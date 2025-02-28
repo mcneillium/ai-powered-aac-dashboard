@@ -10,7 +10,6 @@ import {
   remove
 } from 'firebase/database';
 import { db } from '../firebaseConfig';
-
 import {
   Box,
   Typography,
@@ -29,20 +28,20 @@ import {
   DialogContent,
   DialogContentText
 } from '@mui/material';
-
 import { toast } from 'react-hot-toast';
 import { AiFillEdit, AiFillDelete } from 'react-icons/ai';
 import Papa from 'papaparse';
+import { getAuth } from 'firebase/auth';
 
 export default function Caregivers() {
-  // Caregiver data from DB
+  // State for caregiver data
   const [caregivers, setCaregivers] = useState([]);
 
   // Fields for adding a caregiver manually
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
 
-  // Editing states
+  // Editing state
   const [editId, setEditId] = useState(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
@@ -57,7 +56,25 @@ export default function Caregivers() {
   // CSV file upload state
   const [csvFile, setCsvFile] = useState(null);
 
-  // 1) Listen to caregivers in real-time from the DB
+  // Role state: determine if the user is an admin
+  const [isAdmin, setIsAdmin] = useState(false);
+  const auth = getAuth();
+
+  // Fetch the user's custom claims to determine admin status
+  useEffect(() => {
+    if (auth.currentUser) {
+      auth.currentUser.getIdTokenResult()
+        .then((idTokenResult) => {
+          setIsAdmin(idTokenResult.claims.role === 'admin');
+          console.log('User claims:', idTokenResult.claims);
+        })
+        .catch((error) => {
+          console.error('Error fetching token claims:', error);
+        });
+    }
+  }, [auth.currentUser]);
+
+  // Listen to caregivers in real time
   useEffect(() => {
     const caregiversRef = ref(db, 'caregivers');
     const unsubscribe = onValue(caregiversRef, (snapshot) => {
@@ -68,9 +85,12 @@ export default function Caregivers() {
     return () => unsubscribe();
   }, []);
 
-  // 2) Create a new caregiver manually
+  // Function to add a caregiver (admin only)
   const handleAddCaregiver = async () => {
-    console.log('Add caregiver clicked', { name, email });
+    if (!isAdmin) {
+      toast.error('You do not have permission to add caregivers.');
+      return;
+    }
     if (!name.trim() || !email.trim()) {
       toast.error('Please provide both name and email.');
       return;
@@ -81,7 +101,6 @@ export default function Caregivers() {
     }
     try {
       const newRef = push(ref(db, 'caregivers'));
-      console.log('Firebase ref created:', newRef.key);
       await set(newRef, { name, email });
       toast.success('Caregiver added successfully!');
       setName('');
@@ -92,14 +111,18 @@ export default function Caregivers() {
     }
   };
 
-  // 3) Begin editing a caregiver
+  // Start editing a caregiver (admin only)
   const startEdit = (cg) => {
+    if (!isAdmin) {
+      toast.error('You do not have permission to edit caregivers.');
+      return;
+    }
     setEditId(cg.id);
     setEditName(cg.name);
     setEditEmail(cg.email);
   };
 
-  // 4) Update caregiver
+  // Update a caregiver (admin only)
   const handleUpdateCaregiver = async () => {
     if (!editName.trim() || !editEmail.trim()) {
       toast.error('Please provide both name and email.');
@@ -124,13 +147,17 @@ export default function Caregivers() {
     }
   };
 
-  // 5) Open delete confirmation dialog
+  // Confirm deletion (admin only)
   const confirmDelete = (id) => {
+    if (!isAdmin) {
+      toast.error('You do not have permission to delete caregivers.');
+      return;
+    }
     setDeleteTargetId(id);
     setDeleteDialogOpen(true);
   };
 
-  // 5a) Execute the actual delete
+  // Delete a caregiver (admin only)
   const handleDeleteCaregiver = async () => {
     try {
       await remove(ref(db, `caregivers/${deleteTargetId}`));
@@ -143,19 +170,23 @@ export default function Caregivers() {
     setDeleteTargetId(null);
   };
 
-  // 6) Filter caregivers by search term
+  // Filter caregivers by search term
   const filteredCaregivers = caregivers.filter((cg) =>
     cg.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     cg.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // 7) Handle CSV file selection
+  // Handle CSV file selection
   const handleFileChange = (e) => {
     setCsvFile(e.target.files[0]);
   };
 
-  // 8) Process the CSV upload and add caregivers
+  // Process CSV upload (admin only)
   const handleCSVUpload = () => {
+    if (!isAdmin) {
+      toast.error('You do not have permission to upload CSV data.');
+      return;
+    }
     if (!csvFile) {
       toast.error('Please select a CSV file first.');
       return;
@@ -163,10 +194,8 @@ export default function Caregivers() {
     Papa.parse(csvFile, {
       header: true,
       complete: (results) => {
-        console.log('CSV Results:', results);
         const data = results.data;
         data.forEach(async (row, index) => {
-          // Check if row has required fields and a valid email
           if (row.name && row.email && /^\S+@\S+\.\S+$/.test(row.email)) {
             try {
               const newRef = push(ref(db, 'caregivers'));
@@ -195,36 +224,48 @@ export default function Caregivers() {
         Manage Caregivers
       </Typography>
 
-      {/* ADD NEW CAREGIVER MANUALLY */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-        <TextField
-          label="Name"
-          variant="outlined"
-          size="small"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <TextField
-          label="Email"
-          variant="outlined"
-          size="small"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <Button variant="contained" onClick={handleAddCaregiver}>
-          Add Caregiver
-        </Button>
-      </Box>
+      {/* Admin-only: Add new caregiver manually */}
+      {isAdmin ? (
+        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+          <TextField
+            label="Name"
+            variant="outlined"
+            size="small"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <TextField
+            label="Email"
+            variant="outlined"
+            size="small"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <Button variant="contained" onClick={handleAddCaregiver}>
+            Add Caregiver
+          </Button>
+        </Box>
+      ) : (
+        <Typography variant="body1" color="error" sx={{ mb: 2 }}>
+          You do not have admin privileges to add caregivers.
+        </Typography>
+      )}
 
-      {/* CSV UPLOAD */}
+      {/* CSV Upload (admin only) */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
         <input type="file" accept=".csv" onChange={handleFileChange} />
-        <Button variant="outlined" onClick={handleCSVUpload}>
-          Upload CSV
-        </Button>
+        {isAdmin ? (
+          <Button variant="outlined" onClick={handleCSVUpload}>
+            Upload CSV
+          </Button>
+        ) : (
+          <Typography variant="body2" color="error">
+            CSV upload requires admin privileges.
+          </Typography>
+        )}
       </Box>
 
-      {/* SEARCH FIELD */}
+      {/* Search Field */}
       <Box sx={{ mb: 2 }}>
         <TextField
           label="Search by name or email"
@@ -236,7 +277,7 @@ export default function Caregivers() {
         />
       </Box>
 
-      {/* CAREGIVER TABLE */}
+      {/* Caregiver Table */}
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -290,24 +331,30 @@ export default function Caregivers() {
                     <TableCell>{cg.name}</TableCell>
                     <TableCell>{cg.email}</TableCell>
                     <TableCell>
-                      <Button
-                        variant="text"
-                        size="small"
-                        startIcon={<AiFillEdit />}
-                        sx={{ mr: 1 }}
-                        onClick={() => startEdit(cg)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="text"
-                        size="small"
-                        color="error"
-                        startIcon={<AiFillDelete />}
-                        onClick={() => confirmDelete(cg.id)}
-                      >
-                        Delete
-                      </Button>
+                      {isAdmin ? (
+                        <>
+                          <Button
+                            variant="text"
+                            size="small"
+                            startIcon={<AiFillEdit />}
+                            sx={{ mr: 1 }}
+                            onClick={() => startEdit(cg)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="text"
+                            size="small"
+                            color="error"
+                            startIcon={<AiFillDelete />}
+                            onClick={() => confirmDelete(cg.id)}
+                          >
+                            Delete
+                          </Button>
+                        </>
+                      ) : (
+                        'N/A'
+                      )}
                     </TableCell>
                   </>
                 )}
@@ -317,7 +364,7 @@ export default function Caregivers() {
         </Table>
       </TableContainer>
 
-      {/* DELETE CONFIRMATION DIALOG */}
+      {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
         <DialogTitle>Delete Caregiver</DialogTitle>
         <DialogContent>
