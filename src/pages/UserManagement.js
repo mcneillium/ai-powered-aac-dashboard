@@ -21,6 +21,7 @@ export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserCaregiverId, setNewUserCaregiverId] = useState(''); // New field for caregiver connection
 
   useEffect(() => {
     const usersRef = ref(db, 'users/');
@@ -37,14 +38,19 @@ export default function UserManagement() {
   }, []);
 
   const handleAddUser = async () => {
-    if (!newUserName || !newUserEmail) {
-      alert('Please enter both name and email.');
+    if (!newUserName || !newUserEmail || !newUserCaregiverId) {
+      alert('Please enter name, email, and caregiver ID.');
       return;
     }
     try {
-      await push(ref(db, 'users/'), { name: newUserName, email: newUserEmail });
+      await push(ref(db, 'users/'), { 
+        name: newUserName, 
+        email: newUserEmail, 
+        caregiverId: newUserCaregiverId 
+      });
       setNewUserName('');
       setNewUserEmail('');
+      setNewUserCaregiverId('');
     } catch (error) {
       alert('Error adding user: ' + error.message);
     }
@@ -59,10 +65,14 @@ export default function UserManagement() {
       complete: async (results) => {
         const { data } = results;
         for (const row of data) {
-          // Expecting CSV with headers "name" and "email"
-          if (row.name && row.email) {
+          // Expecting CSV with headers "name", "email", and "caregiverId"
+          if (row.name && row.email && row.caregiverId) {
             try {
-              await push(ref(db, 'users/'), { name: row.name, email: row.email });
+              await push(ref(db, 'users/'), { 
+                name: row.name, 
+                email: row.email, 
+                caregiverId: row.caregiverId 
+              });
             } catch (error) {
               console.error('Error adding user from CSV:', error);
             }
@@ -78,9 +88,9 @@ export default function UserManagement() {
 
   const addDummyUsers = async () => {
     const dummyUsers = [
-      { name: 'Alice', email: 'alice@example.com' },
-      { name: 'Bob', email: 'bob@example.com' },
-      { name: 'Charlie', email: 'charlie@example.com' },
+      { name: 'Alice', email: 'alice@example.com', caregiverId: 'carer123' },
+      { name: 'Bob', email: 'bob@example.com', caregiverId: 'carer123' },
+      { name: 'Charlie', email: 'charlie@example.com', caregiverId: 'carer456' },
     ];
     try {
       for (const user of dummyUsers) {
@@ -112,6 +122,12 @@ export default function UserManagement() {
             variant="outlined"
             value={newUserEmail}
             onChange={(e) => setNewUserEmail(e.target.value)}
+          />
+          <TextField
+            label="Caregiver ID"
+            variant="outlined"
+            value={newUserCaregiverId}
+            onChange={(e) => setNewUserCaregiverId(e.target.value)}
           />
           <Button variant="contained" onClick={handleAddUser}>
             Add User
@@ -146,6 +162,7 @@ export default function UserManagement() {
             <TableRow>
               <TableCell>Name</TableCell>
               <TableCell>Email</TableCell>
+              <TableCell>Caregiver ID</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -153,6 +170,7 @@ export default function UserManagement() {
               <TableRow key={user.id}>
                 <TableCell>{user.name}</TableCell>
                 <TableCell>{user.email}</TableCell>
+                <TableCell>{user.caregiverId}</TableCell>
               </TableRow>
             ))}
           </TableBody>
