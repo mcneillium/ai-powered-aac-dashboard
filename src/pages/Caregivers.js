@@ -1,5 +1,4 @@
 // src/pages/Caregivers.js
-
 import React, { useEffect, useState } from 'react';
 import {
   ref,
@@ -36,6 +35,8 @@ import { getAuth } from 'firebase/auth';
 export default function Caregivers() {
   // State for caregiver data
   const [caregivers, setCaregivers] = useState([]);
+  // State for connected users
+  const [connectedUsers, setConnectedUsers] = useState([]);
 
   // Fields for adding a caregiver manually
   const [name, setName] = useState('');
@@ -81,6 +82,17 @@ export default function Caregivers() {
       const data = snapshot.val() || {};
       const list = Object.entries(data).map(([id, val]) => ({ id, ...val }));
       setCaregivers(list);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Listen to users (for connected user data)
+  useEffect(() => {
+    const usersRef = ref(db, 'users/');
+    const unsubscribe = onValue(usersRef, (snapshot) => {
+      const data = snapshot.val() || {};
+      const list = Object.entries(data).map(([id, val]) => ({ id, ...val }));
+      setConnectedUsers(list);
     });
     return () => unsubscribe();
   }, []);
@@ -196,10 +208,11 @@ export default function Caregivers() {
       complete: (results) => {
         const data = results.data;
         data.forEach(async (row, index) => {
-          if (row.name && row.email && /^\S+@\S+\.\S+$/.test(row.email)) {
+          if (row.name && row.email && row.caregiverId && /^\S+@\S+\.\S+$/.test(row.email)) {
             try {
               const newRef = push(ref(db, 'caregivers'));
               await set(newRef, { name: row.name, email: row.email });
+              // Optionally, you could also create or update a corresponding user record with the caregiverId here.
             } catch (error) {
               console.error(`Error adding caregiver from CSV at row ${index + 1}:`, error);
               toast.error(`Error adding caregiver from CSV at row ${index + 1}.`);
@@ -241,7 +254,7 @@ export default function Caregivers() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <Button variant="contained" onClick={handleAddCaregiver}>
+          <Button variant="contained" size="small" onClick={handleAddCaregiver}>
             Add Caregiver
           </Button>
         </Box>
@@ -285,81 +298,89 @@ export default function Caregivers() {
               <TableCell>ID</TableCell>
               <TableCell>Name</TableCell>
               <TableCell>Email</TableCell>
+              <TableCell>Connected Users</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredCaregivers.map((cg) => (
-              <TableRow key={cg.id}>
-                <TableCell>{cg.id}</TableCell>
-                {editId === cg.id ? (
-                  <>
-                    <TableCell>
-                      <TextField
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <TextField
-                        value={editEmail}
-                        onChange={(e) => setEditEmail(e.target.value)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        sx={{ mr: 1 }}
-                        onClick={handleUpdateCaregiver}
-                      >
-                        Save
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => setEditId(null)}
-                      >
-                        Cancel
-                      </Button>
-                    </TableCell>
-                  </>
-                ) : (
-                  <>
-                    <TableCell>{cg.name}</TableCell>
-                    <TableCell>{cg.email}</TableCell>
-                    <TableCell>
-                      {isAdmin ? (
-                        <>
-                          <Button
-                            variant="text"
-                            size="small"
-                            startIcon={<AiFillEdit />}
-                            sx={{ mr: 1 }}
-                            onClick={() => startEdit(cg)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="text"
-                            size="small"
-                            color="error"
-                            startIcon={<AiFillDelete />}
-                            onClick={() => confirmDelete(cg.id)}
-                          >
-                            Delete
-                          </Button>
-                        </>
-                      ) : (
-                        'N/A'
-                      )}
-                    </TableCell>
-                  </>
-                )}
-              </TableRow>
-            ))}
+            {filteredCaregivers.map((cg) => {
+              // Find connected users whose caregiverId matches this caregiver's id
+              const assignedUsers = connectedUsers.filter(
+                (user) => user.caregiverId === cg.id
+              );
+              const assignedNames = assignedUsers.map((user) => user.name).join(', ');
+              return (
+                <TableRow key={cg.id}>
+                  <TableCell>{cg.id}</TableCell>
+                  {editId === cg.id ? (
+                    <>
+                      <TableCell>
+                        <TextField
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          value={editEmail}
+                          onChange={(e) => setEditEmail(e.target.value)}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>{assignedNames || 'None'}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          sx={{ mr: 1 }}
+                          onClick={handleUpdateCaregiver}
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => setEditId(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </TableCell>
+                    </>
+                  ) : (
+                    <>
+                      <TableCell>{cg.name}</TableCell>
+                      <TableCell>{cg.email}</TableCell>
+                      <TableCell>{assignedNames || 'None'}</TableCell>
+                      <TableCell>
+                        {isAdmin ? (
+                          <>
+                            <Button
+                              variant="text"
+                              size="small"
+                              sx={{ mr: 1 }}
+                              onClick={() => startEdit(cg)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="text"
+                              size="small"
+                              color="error"
+                              onClick={() => confirmDelete(cg.id)}
+                            >
+                              Delete
+                            </Button>
+                          </>
+                        ) : (
+                          'N/A'
+                        )}
+                      </TableCell>
+                    </>
+                  )}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>
