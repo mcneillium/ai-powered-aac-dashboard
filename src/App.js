@@ -7,6 +7,7 @@ import Home from './pages/Home';
 import Caregivers from './pages/Caregivers';
 import Logs from './pages/Logs';
 import AdminDashboard from './pages/AdminDashboard'; // Optional new admin dashboard
+import UserManagement from './pages/UserManagement'; // New user management page
 import { AuthProvider } from './contexts/AuthContext';
 
 function App() {
@@ -47,6 +48,15 @@ function App() {
             element={
               <PrivateRoute>
                 <AdminDashboard />
+              </PrivateRoute>
+            }
+          />
+          {/* New User Management route */}
+          <Route
+            path="/UserManagement"
+            element={
+              <PrivateRoute>
+                <UserManagement />
               </PrivateRoute>
             }
           />
