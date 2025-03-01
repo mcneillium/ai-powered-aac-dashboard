@@ -8,6 +8,7 @@ import Caregivers from './pages/Caregivers';
 import Logs from './pages/Logs';
 import AdminDashboard from './pages/AdminDashboard'; // Optional new admin dashboard
 import UserManagement from './pages/UserManagement'; // New user management page
+import ConnectUser from './pages/ConnectUser'; // New ConnectUser component
 import { AuthProvider } from './contexts/AuthContext';
 
 function App() {
@@ -31,6 +32,14 @@ function App() {
             element={
               <PrivateRoute>
                 <Caregivers />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/connect-user"
+            element={
+              <PrivateRoute>
+                <ConnectUser />
               </PrivateRoute>
             }
           />
