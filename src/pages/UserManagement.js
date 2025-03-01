@@ -1,8 +1,20 @@
 // src/pages/UserManagement.js
-import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  Container,
+  Typography,
+  Box,
+  Button,
+  TextField,
+  Paper,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+} from '@mui/material';
 import { ref, onValue, push } from 'firebase/database';
-import { db } from '../firebaseConfig'; // adjust path as needed
+import { db } from '../firebaseConfig';
 import Papa from 'papaparse';
 
 export default function UserManagement() {
@@ -10,14 +22,13 @@ export default function UserManagement() {
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
 
-  // Fetch users from the "users" node in the database
   useEffect(() => {
     const usersRef = ref(db, 'users/');
-    const unsubscribe = onValue(usersRef, snapshot => {
+    const unsubscribe = onValue(usersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const usersList = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-        setUsers(usersList);
+        const list = Object.entries(data).map(([id, val]) => ({ id, ...val }));
+        setUsers(list);
       } else {
         setUsers([]);
       }
@@ -25,17 +36,13 @@ export default function UserManagement() {
     return () => unsubscribe();
   }, []);
 
-  // Function to add a new user manually
-  const addUser = async () => {
+  const handleAddUser = async () => {
     if (!newUserName || !newUserEmail) {
-      return alert('Please enter both name and email.');
+      alert('Please enter both name and email.');
+      return;
     }
     try {
-      const usersRef = ref(db, 'users/');
-      await push(usersRef, {
-        name: newUserName,
-        email: newUserEmail,
-      });
+      await push(ref(db, 'users/'), { name: newUserName, email: newUserEmail });
       setNewUserName('');
       setNewUserEmail('');
     } catch (error) {
@@ -43,9 +50,8 @@ export default function UserManagement() {
     }
   };
 
-  // Function to handle CSV upload
-  const handleCSVUpload = (event) => {
-    const file = event.target.files[0];
+  const handleCSVUpload = (e) => {
+    const file = e.target.files[0];
     if (!file) return;
     Papa.parse(file, {
       header: true,
@@ -56,25 +62,20 @@ export default function UserManagement() {
           // Expecting CSV with headers "name" and "email"
           if (row.name && row.email) {
             try {
-              const usersRef = ref(db, 'users/');
-              await push(usersRef, {
-                name: row.name,
-                email: row.email,
-              });
+              await push(ref(db, 'users/'), { name: row.name, email: row.email });
             } catch (error) {
-              console.error("Error adding user from CSV: ", error);
+              console.error('Error adding user from CSV:', error);
             }
           }
         }
         alert('CSV upload complete.');
       },
       error: (error) => {
-        alert("Error parsing CSV: " + error.message);
-      }
+        alert('Error parsing CSV: ' + error.message);
+      },
     });
   };
 
-  // Function to add dummy users
   const addDummyUsers = async () => {
     const dummyUsers = [
       { name: 'Alice', email: 'alice@example.com' },
@@ -82,9 +83,8 @@ export default function UserManagement() {
       { name: 'Charlie', email: 'charlie@example.com' },
     ];
     try {
-      const usersRef = ref(db, 'users/');
       for (const user of dummyUsers) {
-        await push(usersRef, user);
+        await push(ref(db, 'users/'), user);
       }
       alert('Dummy users added.');
     } catch (error) {
@@ -93,62 +93,71 @@ export default function UserManagement() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>User Management</Text>
+    <Container sx={{ py: 4 }}>
+      <Typography variant="h4" gutterBottom>
+        User Management
+      </Typography>
       
-      <View style={styles.form}>
-        <TextInput
-          style={styles.input}
-          placeholder="Name"
-          value={newUserName}
-          onChangeText={setNewUserName}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={newUserEmail}
-          onChangeText={setNewUserEmail}
-          keyboardType="email-address"
-        />
-        <TouchableOpacity style={styles.button} onPress={addUser}>
-          <Text style={styles.buttonText}>Add User</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.uploadSection}>
-        <Text style={styles.uploadLabel}>Upload CSV:</Text>
-        {/* For web; for mobile, use a document picker */}
-        <input type="file" accept=".csv" onChange={handleCSVUpload} style={styles.fileInput} />
-      </View>
-
-      <TouchableOpacity style={styles.dummyButton} onPress={addDummyUsers}>
-        <Text style={styles.buttonText}>Add Dummy Users</Text>
-      </TouchableOpacity>
-
-      <FlatList
-        data={users}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.userItem}>
-            <Text style={styles.userText}>{item.name} - {item.email}</Text>
-          </View>
-        )}
-      />
-    </View>
+      <Box component={Paper} sx={{ p: 2, mb: 4 }}>
+        <Typography variant="h6">Add New User</Typography>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 2 }}>
+          <TextField
+            label="Name"
+            variant="outlined"
+            value={newUserName}
+            onChange={(e) => setNewUserName(e.target.value)}
+          />
+          <TextField
+            label="Email"
+            variant="outlined"
+            value={newUserEmail}
+            onChange={(e) => setNewUserEmail(e.target.value)}
+          />
+          <Button variant="contained" onClick={handleAddUser}>
+            Add User
+          </Button>
+        </Box>
+      </Box>
+      
+      <Box component={Paper} sx={{ p: 2, mb: 4 }}>
+        <Typography variant="h6">CSV Upload</Typography>
+        <Box sx={{ mt: 2 }}>
+          <input
+            accept=".csv"
+            type="file"
+            onChange={handleCSVUpload}
+            style={{ marginBottom: 16 }}
+          />
+        </Box>
+      </Box>
+      
+      <Box sx={{ mb: 4 }}>
+        <Button variant="outlined" onClick={addDummyUsers}>
+          Add Dummy Users
+        </Button>
+      </Box>
+      
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          User List
+        </Typography>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Name</TableCell>
+              <TableCell>Email</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {users.map((user) => (
+              <TableRow key={user.id}>
+                <TableCell>{user.name}</TableCell>
+                <TableCell>{user.email}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+    </Container>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#fff' },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  form: { marginBottom: 20 },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 10, marginBottom: 10, borderRadius: 5 },
-  button: { backgroundColor: '#4CAF50', padding: 15, borderRadius: 5, alignItems: 'center', marginBottom: 10 },
-  dummyButton: { backgroundColor: '#2196F3', padding: 15, borderRadius: 5, alignItems: 'center', marginBottom: 20 },
-  buttonText: { color: '#fff', fontSize: 16 },
-  uploadSection: { marginBottom: 20 },
-  uploadLabel: { fontSize: 16, marginBottom: 5 },
-  fileInput: { padding: 5 },
-  userItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  userText: { fontSize: 16 },
-});
