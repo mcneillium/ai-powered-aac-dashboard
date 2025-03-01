@@ -12,147 +12,73 @@ import {
   TableBody,
   TableRow,
   TableCell,
+  Select,
+  MenuItem,
 } from '@mui/material';
-import { ref, onValue, push } from 'firebase/database';
+import { ref, onValue, push, update } from 'firebase/database';
 import { db } from '../firebaseConfig';
 import Papa from 'papaparse';
+import { toast } from 'react-hot-toast';
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
-  const [newUserName, setNewUserName] = useState('');
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserCaregiverId, setNewUserCaregiverId] = useState(''); // New field for caregiver connection
+  const [caregivers, setCaregivers] = useState([]);
+  const [selectedCaregiverForUser, setSelectedCaregiverForUser] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
 
+  // Fetch users
   useEffect(() => {
     const usersRef = ref(db, 'users/');
     const unsubscribe = onValue(usersRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const list = Object.entries(data).map(([id, val]) => ({ id, ...val }));
-        setUsers(list);
-      } else {
-        setUsers([]);
-      }
+      const data = snapshot.val() || {};
+      const list = Object.entries(data).map(([id, val]) => ({ id, ...val }));
+      setUsers(list);
     });
     return () => unsubscribe();
   }, []);
 
-  const handleAddUser = async () => {
-    if (!newUserName || !newUserEmail || !newUserCaregiverId) {
-      alert('Please enter name, email, and caregiver ID.');
-      return;
-    }
-    try {
-      await push(ref(db, 'users/'), { 
-        name: newUserName, 
-        email: newUserEmail, 
-        caregiverId: newUserCaregiverId 
-      });
-      setNewUserName('');
-      setNewUserEmail('');
-      setNewUserCaregiverId('');
-    } catch (error) {
-      alert('Error adding user: ' + error.message);
-    }
-  };
-
-  const handleCSVUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const { data } = results;
-        for (const row of data) {
-          // Expecting CSV with headers "name", "email", and "caregiverId"
-          if (row.name && row.email && row.caregiverId) {
-            try {
-              await push(ref(db, 'users/'), { 
-                name: row.name, 
-                email: row.email, 
-                caregiverId: row.caregiverId 
-              });
-            } catch (error) {
-              console.error('Error adding user from CSV:', error);
-            }
-          }
-        }
-        alert('CSV upload complete.');
-      },
-      error: (error) => {
-        alert('Error parsing CSV: ' + error.message);
-      },
+  // Fetch caregivers
+  useEffect(() => {
+    const caregiversRef = ref(db, 'caregivers');
+    const unsubscribe = onValue(caregiversRef, (snapshot) => {
+      const data = snapshot.val() || {};
+      const list = Object.entries(data).map(([id, val]) => ({ id, ...val }));
+      setCaregivers(list);
     });
-  };
+    return () => unsubscribe();
+  }, []);
 
-  const addDummyUsers = async () => {
-    const dummyUsers = [
-      { name: 'Alice', email: 'alice@example.com', caregiverId: 'carer123' },
-      { name: 'Bob', email: 'bob@example.com', caregiverId: 'carer123' },
-      { name: 'Charlie', email: 'charlie@example.com', caregiverId: 'carer456' },
-    ];
+  const handleAssignCaregiverToUser = async (userId, caregiverId) => {
     try {
-      for (const user of dummyUsers) {
-        await push(ref(db, 'users/'), user);
-      }
-      alert('Dummy users added.');
+      await update(ref(db, `users/${userId}`), { caregiverId });
+      toast.success('Caregiver assigned successfully!');
+      setSelectedCaregiverForUser(prev => ({ ...prev, [userId]: '' }));
     } catch (error) {
-      alert('Error adding dummy users: ' + error.message);
+      console.error('Error assigning caregiver:', error);
+      toast.error('Error assigning caregiver.');
     }
   };
+
+  const filteredUsers = users.filter((user) =>
+    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <Container sx={{ py: 4 }}>
       <Typography variant="h4" gutterBottom>
         User Management
       </Typography>
-      
-      <Box component={Paper} sx={{ p: 2, mb: 4 }}>
-        <Typography variant="h6">Add New User</Typography>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 2 }}>
-          <TextField
-            label="Name"
-            variant="outlined"
-            value={newUserName}
-            onChange={(e) => setNewUserName(e.target.value)}
-          />
-          <TextField
-            label="Email"
-            variant="outlined"
-            value={newUserEmail}
-            onChange={(e) => setNewUserEmail(e.target.value)}
-          />
-          <TextField
-            label="Caregiver ID"
-            variant="outlined"
-            value={newUserCaregiverId}
-            onChange={(e) => setNewUserCaregiverId(e.target.value)}
-          />
-          <Button variant="contained" onClick={handleAddUser}>
-            Add User
-          </Button>
-        </Box>
+      <Box sx={{ mb: 2 }}>
+        <TextField
+          label="Search by name or email"
+          variant="outlined"
+          size="small"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          fullWidth
+        />
       </Box>
-      
-      <Box component={Paper} sx={{ p: 2, mb: 4 }}>
-        <Typography variant="h6">CSV Upload</Typography>
-        <Box sx={{ mt: 2 }}>
-          <input
-            accept=".csv"
-            type="file"
-            onChange={handleCSVUpload}
-            style={{ marginBottom: 16 }}
-          />
-        </Box>
-      </Box>
-      
-      <Box sx={{ mb: 4 }}>
-        <Button variant="outlined" onClick={addDummyUsers}>
-          Add Dummy Users
-        </Button>
-      </Box>
-      
       <Paper sx={{ p: 2 }}>
         <Typography variant="h6" gutterBottom>
           User List
@@ -160,17 +86,39 @@ export default function UserManagement() {
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell>ID</TableCell>
               <TableCell>Name</TableCell>
               <TableCell>Email</TableCell>
-              <TableCell>Caregiver ID</TableCell>
+              <TableCell>Assigned Caregiver</TableCell>
+              <TableCell>Assign Caregiver</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.map((user) => (
+            {filteredUsers.map((user) => (
               <TableRow key={user.id}>
+                <TableCell>{user.id}</TableCell>
                 <TableCell>{user.name}</TableCell>
                 <TableCell>{user.email}</TableCell>
-                <TableCell>{user.caregiverId}</TableCell>
+                <TableCell>{user.caregiverId || 'None'}</TableCell>
+                <TableCell>
+                  <Select
+                    value={selectedCaregiverForUser[user.id] || ''}
+                    onChange={(e) => {
+                      const selected = e.target.value;
+                      setSelectedCaregiverForUser(prev => ({ ...prev, [user.id]: selected }));
+                      handleAssignCaregiverToUser(user.id, selected);
+                    }}
+                    displayEmpty
+                    size="small"
+                  >
+                    <MenuItem value="">-- Select Caregiver --</MenuItem>
+                    {caregivers.map((cg) => (
+                      <MenuItem key={cg.id} value={cg.id}>
+                        {cg.name} ({cg.email})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -179,3 +127,4 @@ export default function UserManagement() {
     </Container>
   );
 }
+// In the code snippet above, we have implemented the User Management page. This page displays a list of users and allows an admin to assign a caregiver to each user. The admin can search for users by name or email and assign a caregiver from the list of caregivers.
