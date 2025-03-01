@@ -25,7 +25,7 @@ export default function Home() {
             <Button variant="contained" component={Link} to="/caregivers">
               Manage Caregivers
             </Button>
-            <Button variant="contained" component={Link} to="/users">
+            <Button variant="contained" component={Link} to="/UserManagement">
               Manage Users
             </Button>
           </>
