@@ -21,9 +21,14 @@ export default function Home() {
       </Typography>
       <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 4 }}>
         {isAdmin && (
-          <Button variant="contained" component={Link} to="/caregivers">
-            Manage Caregivers
-          </Button>
+          <>
+            <Button variant="contained" component={Link} to="/caregivers">
+              Manage Caregivers
+            </Button>
+            <Button variant="contained" component={Link} to="/users">
+              Manage Users
+            </Button>
+          </>
         )}
         <Button variant="outlined" component={Link} to="/logs">
           View User Logs
