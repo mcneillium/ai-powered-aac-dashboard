@@ -3,12 +3,13 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import PrivateRoute from './PrivateRoute';
 import Login from './pages/Login';
+import Signup from './pages/Signup';  // Added sign-up route
 import Home from './pages/Home';
 import Caregivers from './pages/Caregivers';
 import Logs from './pages/Logs';
-import AdminDashboard from './pages/AdminDashboard'; // Optional new admin dashboard
-import UserManagement from './pages/UserManagement'; // New user management page
-import ConnectUser from './pages/ConnectUser'; // New ConnectUser component
+import AdminDashboard from './pages/AdminDashboard';
+import UserManagement from './pages/UserManagement';
+import ConnectUser from './pages/ConnectUser';
 import { AuthProvider } from './contexts/AuthContext';
 
 function App() {
@@ -16,8 +17,10 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Public route for login */}
+          {/* Public routes */}
           <Route path="/" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          
           {/* Protected routes */}
           <Route
             path="/home"
@@ -51,7 +54,6 @@ function App() {
               </PrivateRoute>
             }
           />
-          {/* Optional admin dashboard route */}
           <Route
             path="/admin"
             element={
@@ -60,7 +62,6 @@ function App() {
               </PrivateRoute>
             }
           />
-          {/* New User Management route */}
           <Route
             path="/UserManagement"
             element={
