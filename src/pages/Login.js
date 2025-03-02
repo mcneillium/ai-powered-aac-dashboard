@@ -1,48 +1,63 @@
+// src/pages/Login.js
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Container, TextField, Button, Typography, CircularProgress, Box } from '@mui/material';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { Box, Typography, TextField, Button } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const auth = getAuth();
 
   const handleLogin = async () => {
+    setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigate('/home');
+      navigate('/MainApp'); // Adjust route name as needed
     } catch (error) {
-      console.error('Login error:', error);
-      alert('Invalid credentials or error logging in.');
+      alert('Login error: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Login
+    <Container maxWidth="sm" sx={{ mt: 8 }}>
+      <Typography variant="h4" align="center" gutterBottom>
+        Log In
       </Typography>
-      <TextField
-        label="Email"
-        variant="outlined"
-        type="email"
-        value={email}
-        onChange={e => setEmail(e.target.value)}
-        sx={{ mb: 2, width: '300px' }}
-      />
-      <TextField
-        label="Password"
-        variant="outlined"
-        type="password"
-        value={password}
-        onChange={e => setPassword(e.target.value)}
-        sx={{ mb: 2, width: '300px' }}
-      />
-      <Button variant="contained" onClick={handleLogin}>
-        Sign In
-      </Button>
-    </Box>
+      <Box component="form" noValidate sx={{ mt: 1 }}>
+        <TextField
+          label="Email"
+          fullWidth
+          margin="normal"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          type="email"
+        />
+        <TextField
+          label="Password"
+          fullWidth
+          margin="normal"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          type="password"
+        />
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Button variant="contained" fullWidth onClick={handleLogin} sx={{ mt: 2 }}>
+            Log In
+          </Button>
+        )}
+        <Button fullWidth sx={{ mt: 2 }} onClick={() => navigate('/Signup')}>
+          Don't have an account? Sign Up
+        </Button>
+      </Box>
+    </Container>
   );
 }
