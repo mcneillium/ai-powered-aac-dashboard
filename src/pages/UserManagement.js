@@ -166,11 +166,13 @@ export default function UserManagement() {
     }
   };
 
-  // Filter users based on search term
-  const filteredUsers = users.filter((user) =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter users based on search term, defaulting missing values to empty strings
+  const filteredUsers = users.filter((user) => {
+    const userName = user.name || "";
+    const userEmail = user.email || "";
+    const search = searchTerm.toLowerCase();
+    return userName.toLowerCase().includes(search) || userEmail.toLowerCase().includes(search);
+  });
 
   return (
     <Container sx={{ py: 4 }}>
