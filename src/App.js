@@ -79,6 +79,14 @@ function App() {
               </PrivateRoute>
             }
           />
+          <Route
+            path="/AdminDashboard"
+            element={
+              <PrivateRoute>
+                <AdminDashboard />
+              </PrivateRoute>
+            }
+          />
         </Routes>
       </Router>
     </AuthProvider>

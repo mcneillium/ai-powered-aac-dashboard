@@ -14,9 +14,17 @@ export default function Login() {
   const handleLogin = async () => {
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      navigate('/home'); // Adjust route name as needed
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // Force refresh to ensure updated token claims
+      const tokenResult = await userCredential.user.getIdTokenResult(true);
+      
+      if (tokenResult.claims.role === 'admin') {
+        navigate('/AdminDashboard');
+      } else {
+        navigate('/home');
+      }
     } catch (error) {
+      console.error('Login error:', error);
       alert('Login error: ' + error.message);
     } finally {
       setLoading(false);
@@ -54,7 +62,7 @@ export default function Login() {
             Log In
           </Button>
         )}
-        <Button fullWidth sx={{ mt: 2 }} onClick={() => navigate('/Signup')}>
+        <Button fullWidth sx={{ mt: 2 }} onClick={() => navigate('/signup')}>
           Don't have an account? Sign Up
         </Button>
       </Box>
