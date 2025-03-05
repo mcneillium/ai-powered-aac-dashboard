@@ -1,3 +1,4 @@
+// src/pages/Home.js
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Container, Box, Typography, Button, CircularProgress } from '@mui/material';

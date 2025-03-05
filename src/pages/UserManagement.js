@@ -1,3 +1,4 @@
+// src/pages/UserManagement.js
 import React, { useState, useEffect } from 'react';
 import {
   Container,
@@ -23,6 +24,7 @@ import { db } from '../firebaseConfig';
 import Papa from 'papaparse';
 import { toast } from 'react-hot-toast';
 import SetPasswordForm from './SetPasswordForm';
+import { useNavigate } from 'react-router-dom';
 
 export default function UserManagement() {
   // State for users and caregivers
@@ -46,6 +48,8 @@ export default function UserManagement() {
   // State for password modal
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [selectedUserForPassword, setSelectedUserForPassword] = useState(null);
+
+  const navigate = useNavigate();
 
   // Fetch users from the "users" node
   useEffect(() => {
@@ -240,7 +244,7 @@ export default function UserManagement() {
         />
       </Box>
 
-      {/* Users Table with Caregiver Assignment Dropdown and Set Password Button */}
+      {/* Users Table with Caregiver Assignment Dropdown, Set Password Button, and View Actions */}
       <Paper sx={{ p: 2 }}>
         <Typography variant="h6" gutterBottom>
           User List
@@ -254,6 +258,7 @@ export default function UserManagement() {
               <TableCell>Assigned Caregiver</TableCell>
               <TableCell>Assign Caregiver</TableCell>
               <TableCell>Set Password</TableCell>
+              <TableCell>View Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -294,11 +299,20 @@ export default function UserManagement() {
                     Set Password
                   </Button>
                 </TableCell>
+                <TableCell>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => navigate(`/user-actions/${user.id}`)}
+                  >
+                    View Actions
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
             {filteredUsers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6}>No users found.</TableCell>
+                <TableCell colSpan={7}>No users found.</TableCell>
               </TableRow>
             )}
           </TableBody>
