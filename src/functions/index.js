@@ -1,10 +1,10 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
-// Initialize the Admin SDK once at the top of your file.
+// Initialize the Admin SDK
 admin.initializeApp();
 
-// Switch to an onCall function (instead of onRequest)
+// Existing function for setting user password via HTTPS callable
 exports.setUserPassword = functions.https.onCall(async (data, context) => {
   const { uid, newPassword } = data;
   
@@ -24,5 +24,26 @@ exports.setUserPassword = functions.https.onCall(async (data, context) => {
     console.error('Error updating password:', error);
     // Throw an HttpsError so that the client sees a proper error
     throw new functions.https.HttpsError('internal', error.message);
+  }
+});
+
+// New function: Sync a newly created Authentication user to the Realtime Database
+exports.syncUserToRealtimeDatabase = functions.auth.user().onCreate(async (user) => {
+  const { uid, email, displayName } = user;
+  // Use displayName if available, otherwise use the part of the email before '@'
+  const name = displayName ? displayName : email.split('@')[0];
+  
+  const userData = {
+    name,
+    email,
+    createdAt: admin.database.ServerValue.TIMESTAMP
+  };
+
+  try {
+    // Write the user data to the "users" node, keyed by uid
+    await admin.database().ref(`users/${uid}`).set(userData);
+    console.log(`User ${uid} added to realtime database.`);
+  } catch (error) {
+    console.error('Error syncing user to realtime database:', error);
   }
 });
