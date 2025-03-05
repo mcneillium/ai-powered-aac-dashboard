@@ -3,13 +3,14 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import PrivateRoute from './PrivateRoute';
 import Login from './pages/Login';
-import Signup from './pages/Signup';  // Added sign-up route
+import Signup from './pages/Signup';
 import Home from './pages/Home';
 import Caregivers from './pages/Caregivers';
 import Logs from './pages/Logs';
 import AdminDashboard from './pages/AdminDashboard';
 import UserManagement from './pages/UserManagement';
 import ConnectUser from './pages/ConnectUser';
+import UserActions from './pages/UserActions'; // new component
 import { AuthProvider } from './contexts/AuthContext';
 
 function App() {
@@ -67,6 +68,14 @@ function App() {
             element={
               <PrivateRoute>
                 <UserManagement />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/user-actions/:userId"
+            element={
+              <PrivateRoute>
+                <UserActions />
               </PrivateRoute>
             }
           />
