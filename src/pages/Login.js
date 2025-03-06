@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import { Container, TextField, Button, Typography, CircularProgress, Box } from '@mui/material';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
+// Import your logo image
+import logo from '../assets/logo.png';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -14,17 +16,9 @@ export default function Login() {
   const handleLogin = async () => {
     setLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // Force refresh to ensure updated token claims
-      const tokenResult = await userCredential.user.getIdTokenResult(true);
-      
-      if (tokenResult.claims.role === 'admin') {
-        navigate('/AdminDashboard');
-      } else {
-        navigate('/home');
-      }
+      await signInWithEmailAndPassword(auth, email, password);
+      navigate('/home'); // Adjust route name as needed
     } catch (error) {
-      console.error('Login error:', error);
       alert('Login error: ' + error.message);
     } finally {
       setLoading(false);
@@ -33,9 +27,14 @@ export default function Login() {
 
   return (
     <Container maxWidth="sm" sx={{ mt: 8 }}>
-      <Typography variant="h4" align="center" gutterBottom>
-        Log In
-      </Typography>
+      {/* Logo Section */}
+      <Box sx={{ textAlign: 'center', mb: 2 }}>
+        <img 
+          src={logo} 
+          alt="App Logo" 
+          style={{ width: '150px', height: 'auto', margin: '0 auto' }} 
+        />
+      </Box>
       <Box component="form" noValidate sx={{ mt: 1 }}>
         <TextField
           label="Email"
@@ -62,7 +61,7 @@ export default function Login() {
             Log In
           </Button>
         )}
-        <Button fullWidth sx={{ mt: 2 }} onClick={() => navigate('/signup')}>
+        <Button fullWidth sx={{ mt: 2 }} onClick={() => navigate('/Signup')}>
           Don't have an account? Sign Up
         </Button>
       </Box>
