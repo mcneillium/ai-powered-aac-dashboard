@@ -35,7 +35,6 @@ import {
 import { Link } from 'react-router-dom';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
-// Register chart components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -47,7 +46,7 @@ ChartJS.register(
   Legend
 );
 
-export default function AdminDashboard() {
+function AdminDashboard() {
   // Data states
   const [caregivers, setCaregivers] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -105,7 +104,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchData();
     // Optionally, you can set an interval for automatic refresh:
-    // const interval = setInterval(fetchData, 5 * 60 * 1000); // every 5 minutes
+    // const interval = setInterval(fetchData, 5 * 60 * 1000);
     // return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -161,12 +160,8 @@ export default function AdminDashboard() {
       {
         label: 'Action Distribution',
         data: Object.values(actionCounts),
-        backgroundColor: Object.keys(actionCounts).map(
-          () => 'rgba(153,102,255,0.6)'
-        ),
-        borderColor: Object.keys(actionCounts).map(
-          () => 'rgba(153,102,255,1)'
-        ),
+        backgroundColor: Object.keys(actionCounts).map(() => 'rgba(153,102,255,0.6)'),
+        borderColor: Object.keys(actionCounts).map(() => 'rgba(153,102,255,1)'),
         borderWidth: 1
       }
     ]
@@ -186,6 +181,22 @@ export default function AdminDashboard() {
         <IconButton onClick={fetchData} disabled={loading}>
           <RefreshIcon />
         </IconButton>
+      </Box>
+
+      {/* Navigation Buttons */}
+      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 4 }}>
+        <Button variant="contained" component={Link} to="/caregivers">
+          Manage Caregivers
+        </Button>
+        <Button variant="contained" component={Link} to="/UserManagement">
+          Manage Users
+        </Button>
+        <Button variant="outlined" component={Link} to="/logs">
+          View User Logs
+        </Button>
+        <Button variant="contained" component={Link} to="/finetune-metrics">
+          Fine-Tune Metrics
+        </Button>
       </Box>
 
       {/* Notifications */}
@@ -245,7 +256,7 @@ export default function AdminDashboard() {
         </Box>
       </Paper>
 
-      {/* Summary Cards with Navigation */}
+      {/* Summary Cards */}
       <Grid container spacing={2} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={4}>
           <Paper sx={{ p: 2, textAlign: 'center' }}>
@@ -279,7 +290,7 @@ export default function AdminDashboard() {
       {/* Visualizations */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h5" gutterBottom>
-          Activity Trends
+          User Activity Trends
         </Typography>
         <Paper sx={{ p: 2 }}>
           <Line data={lineChartData} />
@@ -314,9 +325,7 @@ export default function AdminDashboard() {
                 <TableRow key={log.id}>
                   <TableCell>{log.id}</TableCell>
                   <TableCell>{log.action}</TableCell>
-                  <TableCell>
-                    {new Date(log.timestamp).toLocaleString()}
-                  </TableCell>
+                  <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
                 </TableRow>
               ))}
               {recentActivities.length === 0 && (
@@ -333,3 +342,5 @@ export default function AdminDashboard() {
     </Container>
   );
 }
+
+export default AdminDashboard;
