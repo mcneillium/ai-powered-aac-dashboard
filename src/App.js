@@ -12,6 +12,7 @@ import UserManagement from './pages/UserManagement';
 import ConnectUser from './pages/ConnectUser';
 import UserActions from './pages/UserActions'; // new component
 import { AuthProvider } from './contexts/AuthContext';
+import FineTuneMetrics from './pages/FineTuneMetrics';
 
 function App() {
   return (
@@ -47,6 +48,14 @@ function App() {
               </PrivateRoute>
             }
           />
+          <Route
+            path="/finetune-metrics"
+            element={
+              <PrivateRoute>
+                <FineTuneMetrics />
+              </PrivateRoute>
+              }
+            />
           <Route
             path="/logs"
             element={
