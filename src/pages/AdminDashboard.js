@@ -10,6 +10,7 @@ import {
   Grid,
   TextField,
   Button,
+  ButtonGroup,
   Alert,
   Snackbar,
   Table,
@@ -21,8 +22,6 @@ import {
   IconButton,
   Card,
   CardContent,
-  CardHeader,
-  Divider,
   Badge,
   Chip,
   FormControl,
@@ -32,9 +31,6 @@ import {
   CircularProgress,
   Tooltip
 } from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { Line, Pie, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -58,7 +54,6 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import PersonIcon from '@mui/icons-material/Person';
 import FormatQuoteIcon from '@mui/icons-material/FormatQuote';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import DownloadIcon from '@mui/icons-material/Download';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -101,15 +96,19 @@ function AdminDashboard() {
   const [userFilter, setUserFilter] = useState('all');
   const [timeFrame, setTimeFrame] = useState('week'); // 'day', 'week', 'month', 'year'
   
-  // Date calculations
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
+  // Date calculations wrapped in useMemo
+  const dates = useMemo(() => {
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return { today, yesterday };
+  }, []);
   
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay());
-  
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  // Helper to get user name from userId
+  const getUserName = useCallback((userId) => {
+    const user = users.find(u => u.id === userId);
+    return user ? user.name : userId;
+  }, [users]);
   
   // Function to fetch caregivers from Firebase
   const fetchCaregivers = useCallback(() => {
@@ -178,13 +177,7 @@ function AdminDashboard() {
         }
       }
     });
-  }, [isAdmin, myUsers]);
-  
-  // Helper to get user name from userId
-  const getUserName = useCallback((userId) => {
-    const user = users.find(u => u.id === userId);
-    return user ? user.name : userId;
-  }, [users]);
+  }, [isAdmin, myUsers, getUserName]);
   
   // Function to fetch all data
   const fetchData = useCallback(() => {
@@ -409,6 +402,8 @@ function AdminDashboard() {
   
   // Calculate summary statistics
   const stats = useMemo(() => {
+    const { today, yesterday } = dates;
+    
     const todayLogs = logs.filter(log => {
       const logDate = new Date(log.timestamp);
       return logDate.toDateString() === today.toDateString();
@@ -475,7 +470,7 @@ function AdminDashboard() {
       mostCommonAction,
       mostActiveHour
     };
-  }, [logs, today, yesterday, users]);
+  }, [logs, dates, users]);
   
   // Function to format timestamps
   const formatTimestamp = (timestamp) => {
@@ -562,7 +557,7 @@ function AdminDashboard() {
           Welcome back, {userProfile?.name || 'User'}!
         </Typography>
         <Typography variant="body1">
-          Today is {today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}.
+          Today is {dates.today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}.
           {stats.todayCount > 0 ? (
             ` There have been ${stats.todayCount} activities recorded today from ${stats.activeUsersCount} users.`
           ) : (
@@ -773,25 +768,25 @@ function AdminDashboard() {
         
         <Grid container spacing={2}>
           <Grid item xs={12} md={3}>
-            <LocalizationProvider dateAdapter={AdapterDateFns}>
-              <DatePicker
-                label="Start Date"
-                value={startDate}
-                onChange={setStartDate}
-                renderInput={(params) => <TextField {...params} fullWidth />}
-              />
-            </LocalizationProvider>
+            <TextField
+              label="Start Date"
+              type="date"
+              value={startDate ? new Date(startDate).toISOString().split('T')[0] : ''}
+              onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : null)}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+            />
           </Grid>
           
           <Grid item xs={12} md={3}>
-            <LocalizationProvider dateAdapter={AdapterDateFns}>
-              <DatePicker
-                label="End Date"
-                value={endDate}
-                onChange={setEndDate}
-                renderInput={(params) => <TextField {...params} fullWidth />}
-              />
-            </LocalizationProvider>
+            <TextField
+              label="End Date"
+              type="date"
+              value={endDate ? new Date(endDate).toISOString().split('T')[0] : ''}
+              onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : null)}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+            />
           </Grid>
           
           <Grid item xs={12} md={3}>
