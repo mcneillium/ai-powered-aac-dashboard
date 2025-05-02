@@ -5,13 +5,16 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
-    "@mui/icons-material": "^6.4.7",
-    "@mui/material": "^6.4.6",
+    "@mui/icons-material": "^6.4.11",
+    "@mui/material": "^6.4.11",
+    "@mui/system": "^7.0.2",
+    "@mui/x-date-pickers": "^8.2.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^13.5.0",
-    "chart.js": "^4.4.8",
+    "chart.js": "^4.4.9",
+    "date-fns": "^4.1.0",
     "firebase": "^11.3.1",
     "firebase-admin": "^13.1.0",
     "papaparse": "^5.5.2",
@@ -24,12 +27,12 @@
     "react-scripts": "^5.0.1",
     "web-vitals": "^2.1.4"
   },
-  "scripts": {
-    "start": "set NODE_OPTIONS=--openssl-legacy-provider && react-scripts start",
-    "build": "set NODE_OPTIONS=--openssl-legacy-provider && react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
+ "scripts": {
+"start": "craco start",
+"build": "craco build",
+"test":  "craco test",
+  "eject": "react-scripts eject"
+},
   "eslintConfig": {
     "extends": [
       "react-app",
@@ -47,5 +50,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@craco/craco": "^7.1.0"
   }
 }
