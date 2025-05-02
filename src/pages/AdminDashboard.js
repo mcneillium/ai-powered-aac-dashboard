@@ -74,13 +74,14 @@ ChartJS.register(
 
 function AdminDashboard() {
   // Auth context
-  const { currentUser, isAdmin, userProfile } = useAuth();
+  const { user, isAdmin } = useAuth();
   
   // Data states
   const [caregivers, setCaregivers] = useState([]);
   const [users, setUsers] = useState([]);
   const [logs, setLogs] = useState([]);
   const [myUsers, setMyUsers] = useState([]);
+  const [userProfile, setUserProfile] = useState({ name: 'User' });
   
   // UI states
   const [loading, setLoading] = useState(true);
@@ -96,7 +97,7 @@ function AdminDashboard() {
   const [userFilter, setUserFilter] = useState('all');
   const [timeFrame, setTimeFrame] = useState('week'); // 'day', 'week', 'month', 'year'
   
-  // Date calculations wrapped in useMemo
+  // Date calculations
   const dates = useMemo(() => {
     const today = new Date();
     const yesterday = new Date();
@@ -106,78 +107,90 @@ function AdminDashboard() {
   
   // Helper to get user name from userId
   const getUserName = useCallback((userId) => {
+    if (!userId) return 'Unknown User';
     const user = users.find(u => u.id === userId);
-    return user ? user.name : userId;
+    return user ? (user.name || user.email || userId) : userId;
   }, [users]);
   
   // Function to fetch caregivers from Firebase
   const fetchCaregivers = useCallback(() => {
     const caregiversRef = ref(db, 'caregivers');
     
-    return onValue(caregiversRef, (snapshot) => {
+    const unsubscribe = onValue(caregiversRef, (snapshot) => {
       const data = snapshot.val() || {};
       const caregiversList = Object.entries(data).map(([id, val]) => ({ id, ...val }));
       setCaregivers(caregiversList);
     });
+    
+    return unsubscribe;
   }, []);
   
   // Function to fetch users from Firebase
   const fetchUsers = useCallback(() => {
     const usersRef = ref(db, 'users');
     
-    return onValue(usersRef, (snapshot) => {
+    const unsubscribe = onValue(usersRef, (snapshot) => {
       const data = snapshot.val() || {};
       const usersList = Object.entries(data).map(([id, val]) => ({ id, ...val }));
       setUsers(usersList);
       
-      // If not admin, filter for users linked to current caregiver
-      if (!isAdmin && currentUser) {
-        const myUsersList = usersList.filter(user => user.caregiverId === currentUser.uid);
+      // If not admin, filter for users linked to current user
+      if (!isAdmin && user) {
+        const myUsersList = usersList.filter(u => u.caregiverId === user.uid);
         setMyUsers(myUsersList);
       }
     });
-  }, [isAdmin, currentUser]);
+    
+    return unsubscribe;
+  }, [isAdmin, user]);
   
   // Function to fetch logs from Firebase
   const fetchLogs = useCallback(() => {
     // Use query to limit the number of logs fetched initially
     const logsRef = query(ref(db, 'userLogs'), orderByChild('timestamp'), limitToLast(100));
     
-    return onValue(logsRef, (snapshot) => {
+    const unsubscribe = onValue(logsRef, (snapshot) => {
       const data = snapshot.val() || {};
       const list = Object.entries(data).map(([id, val]) => ({ id, ...val }));
       
       // Sort by timestamp descending
       list.sort((a, b) => b.timestamp - a.timestamp);
       
-      // If not admin, filter logs to only show those for my users
-      if (!isAdmin && myUsers.length > 0) {
-        const filteredLogs = list.filter(log => {
-          const userId = log.targetUserId || log.userId;
-          return myUsers.some(user => user.id === userId);
-        });
-        setLogs(filteredLogs);
-      } else {
-        setLogs(list);
-      }
+      setLogs(list);
       
-      // Check for recent logs (last 10 minutes) for notifications
-      const now = Date.now();
-      const recentLogs = list.filter(log => now - log.timestamp < 10 * 60 * 1000);
-      
-      if (recentLogs.length > 0) {
-        setNotifications(recentLogs);
+      // Only check for recent logs if we're not currently loading or refreshing
+      if (!loading && !refreshing) {
+        // Check for recent logs (last 10 minutes)
+        const now = Date.now();
+        const recentLogs = list.filter(log => now - log.timestamp < 10 * 60 * 1000);
         
-        // Show snackbar for the most recent log
-        if (recentLogs[0]) {
-          const recentLog = recentLogs[0];
-          const userName = getUserName(recentLog.targetUserId || recentLog.userId) || 'A user';
-          setSnackbarMessage(`${userName} ${recentLog.action}`);
-          setOpenSnackbar(true);
+        if (recentLogs.length > 0) {
+          setNotifications(recentLogs);
+          
+          // Show snackbar for the most recent log if not already shown
+          if (recentLogs[0] && !openSnackbar) {
+            const recentLog = recentLogs[0];
+            const userName = getUserName(recentLog.targetUserId || recentLog.userId);
+            setSnackbarMessage(`${userName} ${recentLog.action || 'performed an action'}`);
+            setOpenSnackbar(true);
+          }
         }
       }
     });
-  }, [isAdmin, myUsers, getUserName]);
+    
+    return unsubscribe;
+  }, [getUserName, loading, refreshing, openSnackbar]);
+  
+  // Effect to load user profile
+  useEffect(() => {
+    if (user) {
+      // In a real app, this would fetch from the user's profile
+      // For demo purposes, using a basic profile with the user's id
+      setUserProfile({
+        name: user.email ? user.email.split('@')[0] : 'User'
+      });
+    }
+  }, [user]);
   
   // Function to fetch all data
   const fetchData = useCallback(() => {
@@ -189,7 +202,7 @@ function AdminDashboard() {
     const unsubscribeLogs = fetchLogs();
     
     // Set timeout to ensure loading state shows for at least a short time
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       setLoading(false);
       setRefreshing(false);
     }, 1000);
@@ -198,54 +211,84 @@ function AdminDashboard() {
       unsubscribeCaregivers();
       unsubscribeUsers();
       unsubscribeLogs();
+      clearTimeout(timer);
     };
   }, [fetchCaregivers, fetchUsers, fetchLogs]);
   
+  // Initial data load
   useEffect(() => {
     const unsubscribe = fetchData();
     return unsubscribe;
   }, [fetchData]);
   
-  // Apply filters to logs
+  // Filtered logs based on the selected filters
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
-      const logDate = new Date(log.timestamp);
-      let passesDateFilter = true;
+      // Skip logs without timestamps
+      if (!log.timestamp) return false;
       
+      const logDate = new Date(log.timestamp);
+      
+      // If we're not admin, only show logs for users assigned to this caregiver
+      if (!isAdmin && myUsers.length > 0) {
+        const userId = log.targetUserId || log.userId;
+        const isMyUser = myUsers.some(user => user.id === userId);
+        if (!isMyUser) return false;
+      }
+      
+      // Date range filter
       if (startDate) {
         const start = new Date(startDate);
         start.setHours(0, 0, 0, 0);
-        passesDateFilter = passesDateFilter && logDate >= start;
+        if (logDate < start) return false;
       }
       
       if (endDate) {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
-        passesDateFilter = passesDateFilter && logDate <= end;
+        if (logDate > end) return false;
       }
       
-      const passesActionFilter = !actionFilter || 
-        (log.action && log.action.toLowerCase().includes(actionFilter.toLowerCase()));
+      // Action filter
+      if (actionFilter && log.action) {
+        if (!log.action.toLowerCase().includes(actionFilter.toLowerCase())) {
+          return false;
+        }
+      }
       
-      const passesUserFilter = userFilter === 'all' || 
-        log.targetUserId === userFilter || 
-        log.userId === userFilter;
+      // User filter
+      if (userFilter !== 'all') {
+        const userId = log.targetUserId || log.userId;
+        if (userId !== userFilter) return false;
+      }
       
-      return passesDateFilter && passesActionFilter && passesUserFilter;
+      return true;
     });
-  }, [logs, startDate, endDate, actionFilter, userFilter]);
+  }, [logs, startDate, endDate, actionFilter, userFilter, isAdmin, myUsers]);
   
-  // Prepare data for Line Chart (Activity Trends)
+  // Line Chart Data (Activity Trends)
   const lineChartData = useMemo(() => {
-    // Group logs by day/week/month based on selected timeframe
+    if (filteredLogs.length === 0) {
+      return {
+        labels: [],
+        datasets: [{
+          label: 'User Activities',
+          data: [],
+          backgroundColor: 'rgba(75,192,192,0.4)',
+          borderColor: 'rgba(75,192,192,1)',
+          borderWidth: 2,
+          tension: 0.1,
+          fill: true
+        }]
+      };
+    }
+    
+    // Group logs by time period
     const groupedData = {};
-    const format = new Intl.DateTimeFormat('en-US', { 
-      day: 'numeric',
-      month: 'short',
-      year: timeFrame === 'year' ? 'numeric' : undefined
-    });
     
     filteredLogs.forEach(log => {
+      if (!log.timestamp) return;
+      
       const date = new Date(log.timestamp);
       let key;
       
@@ -253,14 +296,19 @@ function AdminDashboard() {
         // Group by hour
         key = `${date.getHours()}:00`;
       } else if (timeFrame === 'week') {
-        // Group by day
-        key = format.format(date);
+        // Group by day using Intl formatter for consistency
+        const formatter = new Intl.DateTimeFormat('en-US', { 
+          day: 'numeric', 
+          month: 'short'
+        });
+        key = formatter.format(date);
       } else if (timeFrame === 'month') {
         // Group by date
-        key = `${date.getDate()}/${date.getMonth() + 1}`;
+        key = date.getDate().toString();
       } else {
         // Group by month for year view
-        key = new Intl.DateTimeFormat('en-US', { month: 'short' }).format(date);
+        const formatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
+        key = formatter.format(date);
       }
       
       if (!groupedData[key]) {
@@ -271,27 +319,38 @@ function AdminDashboard() {
     
     // Sort keys based on timeframe
     let sortedKeys;
+    
     if (timeFrame === 'day') {
-      // Sort hours
+      // Sort hours numerically
       sortedKeys = Object.keys(groupedData).sort((a, b) => {
-        return parseInt(a.split(':')[0]) - parseInt(b.split(':')[0]);
+        return parseInt(a.split(':')[0], 10) - parseInt(b.split(':')[0], 10);
       });
     } else if (timeFrame === 'month') {
-      // Sort dates
+      // Sort dates numerically
       sortedKeys = Object.keys(groupedData).sort((a, b) => {
-        const [dayA] = a.split('/').map(Number);
-        const [dayB] = b.split('/').map(Number);
-        return dayA - dayB;
+        return parseInt(a, 10) - parseInt(b, 10);
       });
     } else if (timeFrame === 'year') {
-      // Sort months
+      // Sort months in calendar order
       const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       sortedKeys = Object.keys(groupedData).sort((a, b) => {
         return monthOrder.indexOf(a) - monthOrder.indexOf(b);
       });
     } else {
-      // Default sort (week view)
-      sortedKeys = Object.keys(groupedData);
+      // Default sort for week (already properly formatted by Intl)
+      const dateMap = {};
+      Object.keys(groupedData).forEach(key => {
+        // Extract day from "May 4" format
+        const parts = key.split(' ');
+        const month = parts[0];
+        const day = parseInt(parts[1], 10);
+        
+        // Create a sortable date value
+        const monthIdx = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].indexOf(month);
+        dateMap[key] = new Date(new Date().getFullYear(), monthIdx, day);
+      });
+      
+      sortedKeys = Object.keys(groupedData).sort((a, b) => dateMap[a] - dateMap[b]);
     }
     
     return {
@@ -314,14 +373,22 @@ function AdminDashboard() {
     };
   }, [filteredLogs, timeFrame]);
   
-  // Prepare data for Activity Type Pie Chart
+  // Pie Chart Data (Activity Types)
   const pieChartData = useMemo(() => {
+    if (filteredLogs.length === 0) {
+      return {
+        labels: [],
+        datasets: [{ data: [], backgroundColor: [], borderColor: [], borderWidth: 1 }]
+      };
+    }
+    
     const actionCounts = {};
     
     filteredLogs.forEach(log => {
-      const action = log.action || 'Unknown';
-      // Extract the main action type (first word or before first space)
-      const actionType = action.split(' ')[0];
+      if (!log.action) return;
+      
+      // Extract the main action type (first word)
+      const actionType = log.action.split(' ')[0];
       
       if (!actionCounts[actionType]) {
         actionCounts[actionType] = 0;
@@ -331,19 +398,19 @@ function AdminDashboard() {
     
     const labels = Object.keys(actionCounts);
     
-    // Create color array based on action type
-    const backgroundColors = labels.map((label, index) => {
-      const colors = [
-        'rgba(255, 99, 132, 0.7)',
-        'rgba(54, 162, 235, 0.7)',
-        'rgba(255, 206, 86, 0.7)',
-        'rgba(75, 192, 192, 0.7)',
-        'rgba(153, 102, 255, 0.7)',
-        'rgba(255, 159, 64, 0.7)',
-        'rgba(199, 199, 199, 0.7)'
-      ];
-      return colors[index % colors.length];
-    });
+    // Create color array
+    const colors = [
+      'rgba(255, 99, 132, 0.7)',
+      'rgba(54, 162, 235, 0.7)',
+      'rgba(255, 206, 86, 0.7)',
+      'rgba(75, 192, 192, 0.7)',
+      'rgba(153, 102, 255, 0.7)',
+      'rgba(255, 159, 64, 0.7)',
+      'rgba(199, 199, 199, 0.7)'
+    ];
+    
+    const backgroundColors = labels.map((_, index) => colors[index % colors.length]);
+    const borderColors = backgroundColors.map(color => color.replace('0.7', '1'));
     
     return {
       labels,
@@ -351,15 +418,28 @@ function AdminDashboard() {
         {
           data: labels.map(label => actionCounts[label]),
           backgroundColor: backgroundColors,
-          borderColor: backgroundColors.map(color => color.replace('0.7', '1')),
+          borderColor: borderColors,
           borderWidth: 1
         }
       ]
     };
   }, [filteredLogs]);
   
-  // Prepare data for User Activity Bar Chart
+  // Bar Chart Data (User Activity)
   const barChartData = useMemo(() => {
+    if (filteredLogs.length === 0) {
+      return {
+        labels: [],
+        datasets: [{
+          label: 'Activities',
+          data: [],
+          backgroundColor: 'rgba(54, 162, 235, 0.7)',
+          borderColor: 'rgba(54, 162, 235, 1)',
+          borderWidth: 1
+        }]
+      };
+    }
+    
     // Group logs by user
     const userActivity = {};
     
@@ -375,10 +455,10 @@ function AdminDashboard() {
       userActivity[userName]++;
     });
     
-    // Sort users by activity count
+    // Sort users by activity count (descending)
     const sortedUsers = Object.keys(userActivity).sort((a, b) => userActivity[b] - userActivity[a]);
     
-    // Limit to top 10 users for readability
+    // Limit to top 10 users
     const topUsers = sortedUsers.slice(0, 10);
     
     return {
@@ -395,40 +475,43 @@ function AdminDashboard() {
     };
   }, [filteredLogs, getUserName]);
   
-  // Recent Activity Logs
-  const recentActivities = useMemo(() => {
-    return filteredLogs.slice(0, 10);
-  }, [filteredLogs]);
+  // Recent Activities (limited to 10)
+  const recentActivities = useMemo(() => filteredLogs.slice(0, 10), [filteredLogs]);
   
-  // Calculate summary statistics
+  // Summary statistics
   const stats = useMemo(() => {
     const { today, yesterday } = dates;
     
+    // Today's logs
     const todayLogs = logs.filter(log => {
+      if (!log.timestamp) return false;
       const logDate = new Date(log.timestamp);
       return logDate.toDateString() === today.toDateString();
     });
     
+    // Yesterday's logs
     const yesterdayLogs = logs.filter(log => {
+      if (!log.timestamp) return false;
       const logDate = new Date(log.timestamp);
       return logDate.toDateString() === yesterday.toDateString();
     });
     
-    // Get unique users who had activity today
+    // Get unique active users today
     const activeUsers = new Set();
     todayLogs.forEach(log => {
       const userId = log.targetUserId || log.userId;
       if (userId) activeUsers.add(userId);
     });
     
-    // Get most common action
+    // Find most common action today
     const actionCounts = {};
     todayLogs.forEach(log => {
-      const action = log.action || 'Unknown';
-      if (!actionCounts[action]) {
-        actionCounts[action] = 0;
+      if (!log.action) return;
+      
+      if (!actionCounts[log.action]) {
+        actionCounts[log.action] = 0;
       }
-      actionCounts[action]++;
+      actionCounts[log.action]++;
     });
     
     let mostCommonAction = 'None';
@@ -441,9 +524,11 @@ function AdminDashboard() {
       }
     });
     
-    // Most active hour
+    // Find most active hour today
     const hourCounts = {};
     todayLogs.forEach(log => {
+      if (!log.timestamp) return;
+      
       const hour = new Date(log.timestamp).getHours();
       if (!hourCounts[hour]) {
         hourCounts[hour] = 0;
@@ -455,16 +540,25 @@ function AdminDashboard() {
     maxCount = 0;
     
     Object.entries(hourCounts).forEach(([hour, count]) => {
+      const hourNum = parseInt(hour, 10);
       if (count > maxCount) {
-        mostActiveHour = parseInt(hour);
+        mostActiveHour = hourNum;
         maxCount = count;
       }
     });
     
+    // Calculate percent change (avoid division by zero)
+    let percentChange = 0;
+    if (yesterdayLogs.length > 0) {
+      percentChange = Math.round((todayLogs.length - yesterdayLogs.length) / yesterdayLogs.length * 100);
+    } else if (todayLogs.length > 0) {
+      percentChange = 100; // If yesterday had 0 logs but today has some, that's a 100% increase
+    }
+    
     return {
       todayCount: todayLogs.length,
       yesterdayCount: yesterdayLogs.length,
-      percentChange: yesterdayLogs.length ? Math.round((todayLogs.length - yesterdayLogs.length) / yesterdayLogs.length * 100) : 100,
+      percentChange,
       activeUsersCount: activeUsers.size,
       totalUsersCount: users.length,
       mostCommonAction,
@@ -472,8 +566,10 @@ function AdminDashboard() {
     };
   }, [logs, dates, users]);
   
-  // Function to format timestamps
+  // Format timestamps for display
   const formatTimestamp = (timestamp) => {
+    if (!timestamp) return 'Unknown time';
+    
     const date = new Date(timestamp);
     return date.toLocaleString('en-US', {
       month: 'short',
@@ -484,7 +580,7 @@ function AdminDashboard() {
     });
   };
   
-  // Function to export logs as CSV
+  // Export logs as CSV
   const exportLogsCSV = () => {
     if (filteredLogs.length === 0) {
       setSnackbarMessage('No logs to export');
@@ -492,16 +588,25 @@ function AdminDashboard() {
       return;
     }
     
-    // Create CSV content
+    // Create CSV content with proper escaping for CSV format
     let csvContent = 'ID,User ID,Action,Timestamp\n';
     
     filteredLogs.forEach(log => {
       const userId = log.targetUserId || log.userId || 'Unknown';
+      // Properly escape fields, especially strings that might contain commas or quotes
+      const escapeCSV = (field) => {
+        const stringField = String(field || '');
+        if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+          return `"${stringField.replace(/"/g, '""')}"`;
+        }
+        return stringField;
+      };
+      
       const row = [
-        log.id,
-        userId,
-        `"${log.action || 'Unknown'}"`,
-        formatTimestamp(log.timestamp)
+        escapeCSV(log.id),
+        escapeCSV(userId),
+        escapeCSV(log.action || 'Unknown'),
+        escapeCSV(formatTimestamp(log.timestamp))
       ].join(',');
       
       csvContent += row + '\n';
@@ -517,6 +622,9 @@ function AdminDashboard() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    setSnackbarMessage(`Exported ${filteredLogs.length} logs successfully`);
+    setOpenSnackbar(true);
   };
   
   // Clear all filters
@@ -525,6 +633,13 @@ function AdminDashboard() {
     setEndDate(null);
     setActionFilter('');
     setUserFilter('all');
+    setSnackbarMessage('Filters cleared');
+    setOpenSnackbar(true);
+  };
+  
+  // Handle snackbar close
+  const handleSnackbarClose = () => {
+    setOpenSnackbar(false);
   };
   
   return (
@@ -541,7 +656,7 @@ function AdminDashboard() {
               disabled={refreshing}
               sx={{ mr: 2 }}
             >
-              <RefreshIcon />
+              {refreshing ? <CircularProgress size={24} /> : <RefreshIcon />}
             </IconButton>
           </Tooltip>
           
@@ -630,10 +745,10 @@ function AdminDashboard() {
           {notifications.slice(0, 3).map((note) => (
             <Alert key={note.id} severity="info" sx={{ mb: 1 }}>
               <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                {getUserName(note.targetUserId || note.userId) || 'A user'} 
-                {' '}{note.action} 
+                {getUserName(note.targetUserId || note.userId)} 
+                {' '}{note.action || 'performed an action'} 
                 {' '}<span style={{ fontStyle: 'italic', color: 'text.secondary' }}>
-                  ({new Date(note.timestamp).toLocaleTimeString()})
+                  ({formatTimestamp(note.timestamp)})
                 </span>
               </Typography>
             </Alert>
@@ -650,7 +765,7 @@ function AdminDashboard() {
       <Snackbar
         open={openSnackbar}
         autoHideDuration={6000}
-        onClose={() => setOpenSnackbar(false)}
+        onClose={handleSnackbarClose}
         message={snackbarMessage}
       />
       
@@ -704,9 +819,11 @@ function AdminDashboard() {
               <Typography color="text.secondary" gutterBottom>
                 Most Common Action
               </Typography>
-              <Typography variant="h6" noWrap sx={{ maxWidth: '100%' }}>
-                {stats.mostCommonAction}
-              </Typography>
+              <Tooltip title={stats.mostCommonAction}>
+                <Typography variant="h6" noWrap sx={{ maxWidth: '100%' }}>
+                  {stats.mostCommonAction}
+                </Typography>
+              </Tooltip>
               <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
                 <FormatQuoteIcon fontSize="small" color="primary" />
                 <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
@@ -796,6 +913,7 @@ function AdminDashboard() {
               fullWidth
               value={actionFilter}
               onChange={(e) => setActionFilter(e.target.value)}
+              placeholder="e.g. addWord, speakSentence"
             />
           </Grid>
           
@@ -937,7 +1055,19 @@ function AdminDashboard() {
                           legend: { display: false }
                         },
                         scales: {
-                          x: { grid: { display: false } },
+                          x: { 
+                            grid: { display: false },
+                            ticks: {
+                              callback: function(value) {
+                                // Truncate long user labels
+                                const label = this.getLabelForValue(value);
+                                if (label && label.length > 15) {
+                                  return label.substr(0, 13) + '...';
+                                }
+                                return label;
+                              }
+                            }
+                          },
                           y: {
                             beginAtZero: true,
                             ticks: { precision: 0 }
@@ -976,7 +1106,7 @@ function AdminDashboard() {
                     recentActivities.map((log) => (
                       <TableRow key={log.id} hover>
                         <TableCell>
-                          {getUserName(log.targetUserId || log.userId) || 'Unknown User'}
+                          {getUserName(log.targetUserId || log.userId)}
                         </TableCell>
                         <TableCell>
                           <Chip 
