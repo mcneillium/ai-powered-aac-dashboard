@@ -1,37 +1,51 @@
 // src/App.js
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import PrivateRoute from './PrivateRoute';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Home from './pages/Home';
+import CaregiverDashboard from './pages/CaregiverDashboard';
 import Caregivers from './pages/Caregivers';
+import ConnectUser from './pages/ConnectUser';
+import FineTuneMetrics from './pages/FineTuneMetrics';
 import Logs from './pages/Logs';
 import AdminDashboard from './pages/AdminDashboard';
 import UserManagement from './pages/UserManagement';
-import ConnectUser from './pages/ConnectUser';
-import UserActions from './pages/UserActions'; // new component
+import UserActions from './pages/UserActions';
 import { AuthProvider } from './contexts/AuthContext';
-import FineTuneMetrics from './pages/FineTuneMetrics';
 
 function App() {
   return (
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Public routes */}
+          {/* Public */}
           <Route path="/" element={<Login />} />
+          <Route path="/login"  element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-          
-          {/* Protected routes */}
+          <Route path="/home"   element={<Home />} />
+
+          {/* Protected */}
           <Route
-            path="/home"
+            path="/admin"
             element={
               <PrivateRoute>
-                <Home />
+                <AdminDashboard />
               </PrivateRoute>
             }
           />
+
+          {/* Caregiver dashboard route */}
+          <Route
+            path="/caregiver"
+            element={
+              <PrivateRoute>
+                <CaregiverDashboard />
+              </PrivateRoute>
+            }
+          />
+
           <Route
             path="/caregivers"
             element={
@@ -54,8 +68,8 @@ function App() {
               <PrivateRoute>
                 <FineTuneMetrics />
               </PrivateRoute>
-              }
-            />
+            }
+          />
           <Route
             path="/logs"
             element={
@@ -65,15 +79,7 @@ function App() {
             }
           />
           <Route
-            path="/admin"
-            element={
-              <PrivateRoute>
-                <AdminDashboard />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/UserManagement"
+            path="/user-management"
             element={
               <PrivateRoute>
                 <UserManagement />
@@ -88,14 +94,9 @@ function App() {
               </PrivateRoute>
             }
           />
-          <Route
-            path="/AdminDashboard"
-            element={
-              <PrivateRoute>
-                <AdminDashboard />
-              </PrivateRoute>
-            }
-          />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
     </AuthProvider>

@@ -1,9 +1,10 @@
 // src/pages/AdminDashboard.js
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { ref, onValue, query, orderByChild, limitToLast } from 'firebase/database';
+import { ref, get, query, orderByChild, limitToLast } from 'firebase/database';
 import { db } from '../firebaseConfig';
 import {
   Container,
@@ -27,64 +28,36 @@ import {
   Badge,
   Chip,
   FormControl,
+  FormControlLabel,
+  Switch,
   InputLabel,
   Select,
   MenuItem,
   CircularProgress,
   Tooltip
 } from '@mui/material';
-import { Line, Pie, Bar } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  LineElement,
-  PointElement,
-  ArcElement,
-  BarElement,
-  Title,
-  Tooltip as ChartTooltip,
-  Legend,
-  Filler
-} from 'chart.js';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import TimelineIcon from '@mui/icons-material/Timeline';
-import AssessmentIcon from '@mui/icons-material/Assessment';
-import DownloadIcon from '@mui/icons-material/Download';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  LineElement,
-  PointElement,
-  ArcElement,
-  BarElement,
-  Title,
-  ChartTooltip,
-  Legend,
-  Filler
-);
+import { Charts } from '../components/DashboardCharts';
 
 export default function AdminDashboard() {
-  const { currentUser, isAdmin, userProfile } = useAuth();
+  const { isAdmin } = useAuth();
+  const navigate = useNavigate();
 
   // Data states
-  const [caregivers, setCaregivers] = useState([]);
+  // const [caregivers, setCaregivers] = useState([]);
   const [users, setUsers] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [myUsers, setMyUsers] = useState([]);
+  const [notifications, setNotifications] = useState([]);
 
   // UI states
   const [loading, setLoading] = useState(true);
-  const [notifications, setNotifications] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [openSnackbar, setOpenSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
 
   // Filters
   const [startDate, setStartDate] = useState(null);
@@ -93,191 +66,283 @@ export default function AdminDashboard() {
   const [userFilter, setUserFilter] = useState('all');
   const [timeFrame, setTimeFrame] = useState('week');
 
-  // Date helpers
+  // Visibility toggles (no unmount, just hide)
+  const [showCharts, setShowCharts] = useState(true);
+  const [showActivities, setShowActivities] = useState(true);
+
+  // Date calculations
   const dates = useMemo(() => {
     const today = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
     return { today, yesterday };
   }, []);
 
-  const getUserName = useCallback(id => {
-    const user = users.find(u => u.id === id);
-    return user ? user.name : 'Unknown User';
-  }, [users]);
+  const getUserName = useCallback(
+    id => {
+      if (!id) return 'Unknown';
+      const u = users.find(u => u.id === id);
+      return u ? (u.name || u.email || id) : 'Unknown';
+    },
+    [users]
+  );
 
-  // Firebase subscriptions
-  const fetchCaregivers = useCallback(() => {
-    const unsub = onValue(ref(db, 'caregivers'), snap => {
+  // Fetch functions (only on mount)
+  // const fetchCaregivers = useCallback(async () => {
+  //   try {
+  //     const snap = await get(ref(db, 'caregivers'));
+  //     const data = snap.val() || {};
+  //     setCaregivers(Object.entries(data).map(([id, v]) => ({ id, ...v })));
+  //   } catch (err) {
+  //     console.error(err);
+  //   }
+  // }, []);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const snap = await get(ref(db, 'users'));
       const data = snap.val() || {};
-      setCaregivers(Object.entries(data).map(([id, v]) => ({ id, ...v })));
-    });
-    return unsub;
+      setUsers(Object.entries(data).map(([id, v]) => ({ id, ...v })));
+    } catch (err) {
+      console.error(err);
+    }
   }, []);
 
-  const fetchUsers = useCallback(() => {
-    const unsub = onValue(ref(db, 'users'), snap => {
+  const fetchLogs = useCallback(async () => {
+    try {
+      const snap = await get(
+        query(ref(db, 'userLogs'), orderByChild('timestamp'), limitToLast(100))
+      );
       const data = snap.val() || {};
-      const list = Object.entries(data).map(([id, v]) => ({ id, ...v }));
-      setUsers(list);
-      if (!isAdmin && currentUser) {
-        setMyUsers(list.filter(u => u.caregiverId === currentUser.uid));
+      let arr = Object.entries(data).map(([id, v]) => ({ id, ...v }));
+      arr.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      setLogs(arr);
+
+      const now = Date.now();
+      const recent = arr.filter(l => l.timestamp && now - l.timestamp < 10 * 60 * 1000);
+      if (recent.length) {
+        setNotifications(recent);
+        const top = recent[0];
+        setSnackbarMessage(
+          `${getUserName(top.targetUserId || top.userId)} ${top.action || 'performed action'}`
+        );
+        setOpenSnackbar(true);
       }
-    });
-    return unsub;
-  }, [isAdmin, currentUser]);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [getUserName]);
 
-  const fetchLogs = useCallback(() => {
-    const unsub = onValue(
-      query(ref(db, 'userLogs'), orderByChild('timestamp'), limitToLast(100)),
-      snap => {
-        let array = Object.entries(snap.val() || {}).map(([id, v]) => ({ id, ...v }));
-        array.sort((a, b) => b.timestamp - a.timestamp);
-        if (!isAdmin && myUsers.length) {
-          array = array.filter(log => myUsers.some(u => u.id === (log.targetUserId || log.userId)));
-        }
-        setLogs(array);
+  const refreshAll = useCallback(async () => {
+    setLoading(true);
+    setRefreshing(true);
+    await Promise.all([fetchUsers(), fetchLogs()]);
+    setLoading(false);
+    setRefreshing(false);
+  }, [fetchUsers, fetchLogs]);
 
-        const recent = array.filter(l => Date.now() - l.timestamp < 10 * 60 * 1000);
-        if (recent.length) {
-          setNotifications(recent);
-          const top = recent[0];
-          setSnackbarMessage(`${getUserName(top.targetUserId || top.userId)} ${top.action}`);
-          setOpenSnackbar(true);
-        }
-      }
-    );
-    return unsub;
-  }, [isAdmin, myUsers, getUserName]);
+  useEffect(() => { refreshAll(); }, [refreshAll]);
 
-  const refreshAll = useCallback(() => {
-    setRefreshing(true); setLoading(true);
-    const unsubC = fetchCaregivers();
-    const unsubU = fetchUsers();
-    const unsubL = fetchLogs();
-    setTimeout(() => { setLoading(false); setRefreshing(false); }, 1000);
-    return () => { unsubC(); unsubU(); unsubL(); };
-  }, [fetchCaregivers, fetchUsers, fetchLogs]);
+  // Filter logs (memoized)
+  const filteredLogs = useMemo(
+    () =>
+      logs.filter(l => {
+        if (!l.timestamp) return false;
+        const d = new Date(l.timestamp);
+        if (startDate && d < new Date(startDate).setHours(0,0,0,0)) return false;
+        if (endDate && d > new Date(endDate).setHours(23,59,59,999)) return false;
+        if (actionFilter && !l.action?.toLowerCase().includes(actionFilter.toLowerCase())) return false;
+        if (
+          userFilter !== 'all' &&
+          l.userId !== userFilter &&
+          l.targetUserId !== userFilter
+        ) return false;
+        return true;
+      }),
+    [logs, startDate, endDate, actionFilter, userFilter]
+  );
 
-  useEffect(() => {
-    const cleanup = refreshAll();
-    return cleanup;
-  }, [refreshAll]);
-
-  // Filter logs
-  const filteredLogs = useMemo(() => logs.filter(log => {
-    if (!log.timestamp) return false;
-    const d = new Date(log.timestamp);
-    if (startDate) { const s = new Date(startDate); s.setHours(0,0,0,0); if (d < s) return false; }
-    if (endDate)   { const e = new Date(endDate); e.setHours(23,59,59,999); if (d > e) return false; }
-    if (actionFilter && !log.action?.toLowerCase().includes(actionFilter.toLowerCase())) return false;
-    if (userFilter !== 'all' && log.targetUserId !== userFilter && log.userId !== userFilter) return false;
-    return true;
-  }), [logs, startDate, endDate, actionFilter, userFilter]);
-
-  // Chart & stats
-  const lineChartData = useMemo(() => {
-    const grouped = {};
-    filteredLogs.forEach(log => {
-      const date = new Date(log.timestamp);
+  // Chart data
+  const lineData = useMemo(() => {
+    const counts = {};
+    filteredLogs.forEach(l => {
+      const d = new Date(l.timestamp);
       let key;
-      if (timeFrame === 'day') key = `${date.getHours()}:00`;
-      else if (timeFrame === 'week') key = date.toLocaleDateString('en-US', { month:'short', day:'numeric' });
-      else if (timeFrame === 'month') key = `${date.getDate()}/${date.getMonth()+1}`;
-      else key = date.toLocaleDateString('en-US', { month:'short' });
-      grouped[key] = (grouped[key]||0) + 1;
+      if (timeFrame === 'day') key = `${d.getHours()}:00`;
+      else if (timeFrame === 'week') key = d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+      else if (timeFrame === 'month') key = `${d.getDate()}/${d.getMonth()+1}`;
+      else key = d.toLocaleDateString('en-US', { month:'short' });
+      counts[key] = (counts[key] || 0) + 1;
     });
-    const labels = Object.keys(grouped);
-    return { labels, datasets: [{ label:'Activities', data: labels.map(l => grouped[l]), backgroundColor:'rgba(75,192,192,0.4)', borderColor:'rgba(75,192,192,1)', borderWidth:2, tension:0.1, fill:true }] };
+    return { labels: Object.keys(counts).sort(), datasets: [{ label:'Activities', data:Object.keys(counts).sort().map(k=>counts[k]) }] };
   }, [filteredLogs, timeFrame]);
 
-  const pieChartData = useMemo(() => {
+  const pieData = useMemo(() => {
     const counts = {};
-    filteredLogs.forEach(log => { const t = log.action?.split(' ')[0]||'Unknown'; counts[t] = (counts[t]||0)+1; });
+    filteredLogs.forEach(l => {
+      const t = l.action?.split(' ')[0]||'Unknown';
+      counts[t] = (counts[t]||0)+1;
+    });
     const labels = Object.keys(counts);
-    const bg = ['rgba(255,99,132,0.7)','rgba(54,162,235,0.7)','rgba(255,206,86,0.7)','rgba(75,192,192,0.7)'];
-    return { labels, datasets: [{ data:labels.map(l=>counts[l]), backgroundColor: labels.map((_,i)=>bg[i%bg.length]), borderColor: labels.map((_,i)=>bg[i%bg.length].replace('0.7','1')), borderWidth:1 }] };
+    return { labels, datasets:[{ data:labels.map(k=>counts[k]) }] };
   }, [filteredLogs]);
 
-  const barChartData = useMemo(() => {
+  const barData = useMemo(() => {
     const ua = {};
-    filteredLogs.forEach(log => {
-      const id = log.targetUserId||log.userId;
-      const name = getUserName(id);
-      ua[name] = (ua[name]||0)+1;
+    filteredLogs.forEach(l=>{
+      const n = getUserName(l.targetUserId||l.userId);
+      ua[n]=(ua[n]||0)+1;
     });
-    const sorted = Object.keys(ua).sort((a,b)=>ua[b]-ua[a]).slice(0,10);
-    return { labels:sorted, datasets:[{ label:'Activities', data: sorted.map(u=>ua[u]), backgroundColor:'rgba(54,162,235,0.7)', borderColor:'rgba(54,162,235,1)', borderWidth:1 }] };
+    const labels = Object.keys(ua).sort((a,b)=>ua[b]-ua[a]).slice(0,10);
+    return { labels, datasets:[{ label:'Activities', data:labels.map(l=>ua[l]) }] };
   }, [filteredLogs, getUserName]);
 
-  const recentActivities = useMemo(() => filteredLogs.slice(0,10), [filteredLogs]);
-
+  // Stats & Recent
+  const recent = useMemo(() => filteredLogs.slice(0,10), [filteredLogs]);
   const stats = useMemo(() => {
-    const { today, yesterday } = dates;
-    const t = logs.filter(l => new Date(l.timestamp).toDateString() === today.toDateString());
-    const y = logs.filter(l => new Date(l.timestamp).toDateString() === yesterday.toDateString());
-    const active = new Set(t.map(l=>l.targetUserId||l.userId));
-    const actions = {};
-    t.forEach(l => actions[l.action] = (actions[l.action]||0) + 1);
-    const most = Object.entries(actions).reduce((m,[a,c])=>c>m[1]?[a,c]:m,['None',0])[0];
-    const hours = {};
-    t.forEach(l=>{ const h=new Date(l.timestamp).getHours(); hours[h]=(hours[h]||0)+1; });
-    const peak = Object.entries(hours).reduce((m,[h,c])=>c>m[1]?[+h,c]:m,[-1,0])[0];
-    const pc = y.length ? Math.round((t.length - y.length)/y.length*100) : 100;
-    return { todayCount: t.length, yesterdayCount: y.length, percentChange: pc, activeUsersCount: active.size, totalUsersCount: users.length, mostCommonAction: most, mostActiveHour: peak };
-  }, [logs, dates, users]);
+    const {today,yesterday} = dates;
+    const tl = logs.filter(l=>new Date(l.timestamp).toDateString()===today.toDateString());
+    const yl = logs.filter(l=>new Date(l.timestamp).toDateString()===yesterday.toDateString());
+    const usersSet = new Set(tl.map(l=>l.targetUserId||l.userId));
+    const counts = {};
+    tl.forEach(l=>{ counts[l.action] = (counts[l.action]||0)+1; });
+    const mc = Object.entries(counts).reduce((m,[k,v])=>v>m[1]?[k,v]:m,['None',0])[0];
+    const hc = {};
+    tl.forEach(l=>{ const h=new Date(l.timestamp).getHours(); hc[h]=(hc[h]||0)+1; });
+    const ph = Object.entries(hc).reduce((m,[h,v])=>v>m[1]?[+h,v]:m,[-1,0])[0];
+    const pc = yl.length ? Math.round((tl.length-yl.length)/yl.length*100): tl.length?100:0;
+    return { todayCount:tl.length, activeUsersCount:usersSet.size, totalUsersCount:users.length, mostCommonAction:mc, mostActiveHour:ph, percentChange:pc };
+  },[logs,dates,users]);
 
-  const formatTimestamp = ts => new Date(ts).toLocaleString('en-US',{ month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const clearFilters = () => { setStartDate(null); setEndDate(null); setActionFilter(''); setUserFilter('all'); };
-  const chartOptions = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'top' }, tooltip:{ mode:'index', intersect:false } }, scales:{ x:{ grid:{ display:false } }, y:{ beginAtZero:true, ticks:{ precision:0 } } } };
+  const formatTS = useCallback(ts => ts? new Date(ts).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'Unknown',[]);
+  const clearFilters = useCallback(()=>{ setStartDate(null); setEndDate(null); setActionFilter(''); setUserFilter('all'); },[]);
 
   return (
-    <Container maxWidth="xl" sx={{ py:4 }}>
-      {/* Header */}
-      <Box sx={{ display:'flex', alignItems:'center', mb:3 }}>
-        <Typography variant="h4" sx={{ flexGrow:1 }}>{isAdmin?'Admin Dashboard':'Caregiver Dashboard'}</Typography>
-        <Tooltip title="Refresh Data">
-          <IconButton onClick={refreshAll} disabled={refreshing} sx={{ mr:2 }}>{refreshing?<CircularProgress size={24}/>:<RefreshIcon/>}</IconButton>
-        </Tooltip>
-        <Badge badgeContent={notifications.length} color="error"><NotificationsIcon/></Badge>
+    <Container maxWidth="xl" sx={{ backgroundColor:'background.default', minHeight:'100vh', py:4 }}>
+      {/* Header + management */}
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+        <Typography variant="h4">{isAdmin?'Admin Dashboard':'Dashboard'}</Typography>
+        <Box>
+          <ButtonGroup variant="contained" sx={{ mr:2 }}>
+            <Button component={Link} to="/user-management">Users</Button>
+            <Button component={Link} to="/Caregivers">Caregivers</Button>
+            <Button component={Link} to="/Logs">Logs</Button>
+            <Button component={Link} to="/notifications">Notifications</Button>
+          </ButtonGroup>
+          <IconButton onClick={refreshAll} disabled={refreshing} color="primary">
+            <RefreshIcon/>
+          </IconButton>
+          <Badge badgeContent={notifications.length} color="error" sx={{ ml:2 }}>
+            <NotificationsIcon/>
+          </Badge>
+        </Box>
       </Box>
 
-      {/* Filtering */}
-      <Paper sx={{ p:3, mb:4 }}>
-        <Box sx={{ display:'flex', alignItems:'center', mb:2 }}><FilterListIcon sx={{ mr:1 }}/><Typography variant="h6">Filter Data</Typography></Box>
+      {/* Visibility toggles */}
+      <Box display="flex" gap={4} mb={4}>
+        <FormControlLabel
+          control={<Switch checked={showCharts} onChange={e=>setShowCharts(e.target.checked)}/>}  label="Show Charts" />
+        <FormControlLabel
+          control={<Switch checked={showActivities} onChange={e=>setShowActivities(e.target.checked)}/>} label="Show Activities" />
+      </Box>
+
+      {/* Filters panel */}
+      <Paper elevation={3} sx={{ p:3, mb:4, borderRadius:2 }}>
+        <Box display="flex" alignItems="center" mb={2}><FilterListIcon sx={{mr:1}}/><Typography variant="h6">Filters</Typography></Box>
         <Grid container spacing={2}>
-          <Grid item xs={12} md={3}><LocalizationProvider dateAdapter={AdapterDateFns}><DatePicker label="Start Date" value={startDate} onChange={setStartDate} renderInput={params=><TextField {...params} fullWidth/>}/></LocalizationProvider></Grid>
-          <Grid item xs={12} md={3}><LocalizationProvider dateAdapter={AdapterDateFns}><DatePicker label="End Date" value={endDate} onChange={setEndDate} renderInput={params=><TextField {...params} fullWidth/>}/></LocalizationProvider></Grid>
+          <Grid item xs={12} md={3}><LocalizationProvider dateAdapter={AdapterDateFns}><DatePicker label="Start Date" value={startDate} onChange={setStartDate} slotProps={{textField:{fullWidth:true}}}/></LocalizationProvider></Grid>
+          <Grid item xs={12} md={3}><LocalizationProvider dateAdapter={AdapterDateFns}><DatePicker label="End Date" value={endDate} onChange={setEndDate} slotProps={{textField:{fullWidth:true}}}/></LocalizationProvider></Grid>
           <Grid item xs={12} md={3}><TextField label="Action" fullWidth value={actionFilter} onChange={e=>setActionFilter(e.target.value)}/></Grid>
-          <Grid item xs={12} md={3}><FormControl fullWidth><InputLabel>User</InputLabel><Select value={userFilter} label="User" onChange={e=>setUserFilter(e.target.value)}><MenuItem value="all">All</MenuItem>{users.map(u=><MenuItem key={u.id} value={u.id}>{u.name}</MenuItem>)}</Select></FormControl></Grid>
+          <Grid item xs={12} md={3}><FormControl fullWidth><InputLabel>User</InputLabel><Select value={userFilter} label="User" onChange={e=>setUserFilter(e.target.value)}><MenuItem value="all">All</MenuItem>{users.map(u=><MenuItem key={u.id} value={u.id}>{u.name||u.email||u.id}</MenuItem>)}</Select></FormControl></Grid>
+          <Grid item xs={12}><Button variant="outlined" onClick={clearFilters}>Clear Filters</Button></Grid>
         </Grid>
       </Paper>
 
       {/* Stats */}
-      <Grid container spacing={3} sx={{ mb:4 }}>
-        <Grid item xs={12} sm={6} md={3}><Card sx={{ height:'100%' }}><CardContent><Typography color="text.secondary" gutterBottom>Today's Activities</Typography><Typography variant="h4">{stats.todayCount}</Typography><Typography variant="body2" color={stats.percentChange>=0?'success.main':'error.main'}>{stats.percentChange>=0?'↑':'↓'}{stats.percentChange}%</Typography></CardContent></Card></Grid>
-        <Grid item xs={12} sm={6} md={3}><Card sx={{ height:'100%' }}><CardContent><Typography color="text.secondary" gutterBottom>Active Users</Typography><Typography variant="h4">{stats.activeUsersCount}</Typography><Typography variant="body2" color="text.secondary">of {stats.totalUsersCount}</Typography></CardContent></Card></Grid>
-        <Grid item xs={12} sm={6} md={3}><Card sx={{ height:'100%' }}><CardContent><Typography color="text.secondary" gutterBottom>Common Action</Typography><Tooltip title={stats.mostCommonAction}><Typography variant="h6" noWrap>{stats.mostCommonAction}</Typography></Tooltip></CardContent></Card></Grid>
-        <Grid item xs={12} sm={6} md={3}><Card sx={{ height:'100%' }}><CardContent><Typography color="text.secondary" gutterBottom>Peak Hour</Typography><Typography variant="h4">{stats.mostActiveHour>=0?`${stats.mostActiveHour%12||12}${stats.mostActiveHour>=12?'PM':'AM'}`:'N/A'}</Typography></CardContent></Card></Grid>
+      <Grid container spacing={3} mb={4}>
+        {[
+          { label: "Today's Activities", value: stats.todayCount, change: stats.percentChange },
+          { label: 'Active Users', value: stats.activeUsersCount, sub: `of ${stats.totalUsersCount}` },
+          { label: 'Common Action', value: stats.mostCommonAction },
+          { label: 'Peak Hour', value: stats.mostActiveHour >= 0 ? `${stats.mostActiveHour%12||12}${stats.mostActiveHour>=12?'PM':'AM'}` : 'N/A' }
+        ].map((card,i)=>(
+          <Grid item xs={12} sm={6} md={3} key={i}>
+            <Card elevation={3} sx={{ borderRadius:2 }}>
+              <CardContent>
+                <Typography color="text.secondary">{card.label}</Typography>
+                <Typography variant="h4">{card.value}</Typography>
+                {card.change!==undefined && <Typography color={card.change>=0?'success.main':'error.main'}>{card.change>=0?'↑':'↓'}{Math.abs(card.change)}%</Typography>}
+                {card.sub && <Typography color="text.secondary">{card.sub}</Typography>}
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
       </Grid>
 
-      {/* Timeframe */}
-      <Box sx={{ display:'flex', justifyContent:'center', mb:3 }}><ButtonGroup variant="outlined">{['day','week','month','year'].map(tf=><Button key={tf} onClick={()=>setTimeFrame(tf)} variant={timeFrame===tf?'contained':'outlined'}>{tf}</Button>)}</ButtonGroup></Box>
+      {/* Timeframe selector */}
+      <Box display="flex" justifyContent="center" mb={3}>
+        <ButtonGroup variant="outlined">
+          {['day','week','month','year'].map(tf=>(
+            <Button key={tf} onClick={()=>setTimeFrame(tf)} variant={timeFrame===tf?'contained':'outlined'}>{tf.charAt(0).toUpperCase()+tf.slice(1)}</Button>
+          ))}
+        </ButtonGroup>
+      </Box>
 
-      {/* Charts */}
-      {loading ? <Box sx={{ display:'flex', justifyContent:'center', py:4 }}><CircularProgress/></Box> : <>
-        <Paper sx={{ p:3, mb:4 }}><Typography variant="h6"><TimelineIcon sx={{ mr:1 }}/>Activity Trends</Typography>{filteredLogs.length? <Box sx={{ height:300 }}><Line data={lineChartData} options={chartOptions}/></Box>: <Typography align="center" sx={{ py:4 }}>No data</Typography>}</Paper>
-        <Grid container spacing={3} sx={{ mb:4 }}>
-          <Grid item xs={12} md={6}><Paper sx={{ p:3, height:'100%' }}><Typography variant="h6">Distribution</Typography>{filteredLogs.length?<Box sx={{ height:300 }}><Pie data={pieChartData} options={{...chartOptions, plugins:{legend:{position:'right'}}}}/></Box>:<Typography align="center">No data</Typography>}</Paper></Grid>
-          <Grid item xs={12} md={6}><Paper sx={{ p:3, height:'100%' }}><Typography variant="h6">User Comparison</Typography>{filteredLogs.length?<Box sx={{ height:300 }}><Bar data={barChartData} options={{...chartOptions, plugins:{legend:{display:false}}}}/></Box>:<Typography align="center">No data</Typography>}</Paper></Grid>
-        </Grid>
-      </>}
+      {/* Charts section (hidden via CSS) */}
+      <Box sx={{ display: showCharts ? 'block':'none' }}>
+        {loading ? (
+          <Box display="flex" justifyContent="center" py={4}><CircularProgress/></Box>
+        ) : (
+          <Paper elevation={3} sx={{ p:3, mb:4, borderRadius:2 }}>
+            <Typography variant="h6"><TimelineIcon sx={{mr:1}}/> Activity Trends</Typography>
+            <Charts lineData={lineData} pieData={pieData} barData={barData}/>
+          </Paper>
+        )}
+      </Box>
 
-      {/* Recent Table */}
-      <Paper sx={{ p:3, mb:4 }}><Typography variant="h6">Recent Activities</Typography><TableContainer><Table><TableHead><TableRow><TableCell>User</TableCell><TableCell>Action</TableCell><TableCell>Time</TableCell><TableCell>Detail</TableCell></TableRow></TableHead><TableBody>{recentActivities.length?recentActivities.map(log=><TableRow key={log.id}><TableCell>{getUserName(log.targetUserId||log.userId)}</TableCell><TableCell><Chip label={log.action}/></TableCell><TableCell>{formatTimestamp(log.timestamp)}</TableCell><TableCell>{log.sentence? <Tooltip title={log.sentence}><Typography noWrap sx={{maxWidth:200}}>{log.sentence}</Typography></Tooltip>: log.wordAdded?`Added "${log.wordAdded}"`:null}</TableCell></TableRow>):<TableRow><TableCell colSpan={4} align="center">No recent</TableCell></TableRow>}</TableBody></Table></TableContainer></Paper>
+      {/* Recent Activities section (hidden via CSS) */}
+      <Box sx={{ display: showActivities ? 'block':'none' }}>
+        <Paper elevation={3} sx={{ p:3, mb:4, borderRadius:2 }}>
+          <Typography variant="h6">Recent Activities</Typography>
+          <TableContainer>
+            <Table>
+              <TableHead><TableRow><TableCell>User</TableCell><TableCell>Action</TableCell><TableCell>Time</TableCell><TableCell>Detail</TableCell></TableRow></TableHead>
+              <TableBody>{recent.length? recent.map(l=>(
+                <TableRow key={l.id}>
+                  <TableCell>{getUserName(l.targetUserId||l.userId)}</TableCell>
+                  <TableCell><Chip label={l.action||'Unknown'} size="small" variant="outlined" /></TableCell>
+                  <TableCell>{formatTS(l.timestamp)}</TableCell>
+                  <TableCell>{l.sentence||''}</TableCell>
+                </TableRow>
+              )): <TableRow><TableCell colSpan={4} align="center">No recent activities</TableCell></TableRow>}</TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      </Box>
 
-      {/* Snackbar */}
-      <Snackbar open={openSnackbar} autoHideDuration={6000} onClose={()=>setOpenSnackbar(false)} message={snackbarMessage}/>
+        <Snackbar
+    open={openSnackbar}
+    autoHideDuration={6000}
+    onClose={() => setOpenSnackbar(false)}
+    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+    message={
+      <span>
+        🔔 {snackbarMessage}
+      </span>
+    }
+    action={
+      <Button 
+        color="secondary" 
+        size="small" 
+        onClick={() => {
+          setOpenSnackbar(false);
+          navigate('/logs');
+        }}
+      >
+        View Logs
+      </Button>
+    }
+  />
     </Container>
   );
 }

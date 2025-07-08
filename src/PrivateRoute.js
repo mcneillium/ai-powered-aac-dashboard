@@ -1,17 +1,32 @@
 // src/PrivateRoute.js
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { getAuth } from 'firebase/auth'; // or your custom auth logic
+import { useAuth } from './contexts/AuthContext';
+import { Box, CircularProgress } from '@mui/material';
 
 export default function PrivateRoute({ children }) {
-  const auth = getAuth();
-  const user = auth.currentUser;
+  const { currentUser, loading } = useAuth();
 
-  // If not logged in, redirect to login page
-  if (!user) {
-    return <Navigate to="/" />;
+  if (loading) {
+    // still initializing auth → show spinner
+    return (
+      <Box
+        sx={{
+          height: '100vh',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
   }
 
-  // Otherwise, render the protected content
-  return children;
+  return currentUser ? (
+    children
+  ) : (
+    // not logged in → redirect to login
+    <Navigate to="/login" replace />
+  );
 }

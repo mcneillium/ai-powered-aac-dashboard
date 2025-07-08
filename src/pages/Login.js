@@ -17,7 +17,7 @@ export default function Login() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigate('/home'); // Adjust route name as needed
+      navigate('/'); // Adjust route name as needed
     } catch (error) {
       alert('Login error: ' + error.message);
     } finally {

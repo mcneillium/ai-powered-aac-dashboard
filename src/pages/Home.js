@@ -5,22 +5,33 @@ import { useAuth } from '../contexts/AuthContext';
 import { Container, CircularProgress } from '@mui/material';
 
 export default function Home() {
-  const { isAdmin, loading } = useAuth();
+  const { currentUser, isAdmin, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!loading) {
-      if (isAdmin) {
-        navigate('/admin'); // Redirect admin users to the Admin Dashboard
+      if (!currentUser) {
+        navigate('/login', { replace: true });
+      } else if (isAdmin) {
+        navigate('/admin', { replace: true });
       } else {
-        navigate('/caregiver'); // Redirect caregiver users to the Caregiver Dashboard
+        // Redirect to caregiver dashboard or another page for non-admin users
+        navigate('/caregiver', { replace: true });
       }
     }
-  }, [isAdmin, loading, navigate]);
+  }, [currentUser, isAdmin, loading, navigate]);
 
   return (
-    <Container sx={{ py: 4, textAlign: 'center' }}>
-      <CircularProgress />
+    <Container
+      sx={{
+        py: 8,
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '60vh'
+      }}
+    >
+      <CircularProgress size={48} />
     </Container>
   );
 }

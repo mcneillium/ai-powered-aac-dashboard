@@ -1,44 +1,56 @@
 // src/contexts/AuthContext.js
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
+import { auth, db } from '../firebaseConfig';
+import { ref, get } from 'firebase/database';
 
 const AuthContext = createContext();
 
-export const AuthProvider = ({ children }) => {
-  const auth = getAuth();
-  const [user, setUser] = useState(null);
-  const [claims, setClaims] = useState({});
-  const [loading, setLoading] = useState(true);
+export function AuthProvider({ children }) {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isAdmin, setIsAdmin]         = useState(false);
+  const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      if (firebaseUser) {
-        firebaseUser.getIdTokenResult()
-          .then((tokenResult) => {
-            setClaims(tokenResult.claims);
-            setLoading(false);
-          })
-          .catch((error) => {
-            console.error('Error fetching token claims:', error);
-            setLoading(false);
-          });
-      } else {
-        setClaims({});
-        setLoading(false);
-      }
-    });
-    return unsubscribe;
-  }, [auth]);
+    const unsubscribe = onAuthStateChanged(auth, async user => {
+      if (user) {
+        // ALWAYS set the Firebase user object
+        setCurrentUser(user);
 
-  // Provide an isAdmin flag
-  const isAdmin = claims.role === 'admin';
+        // THEN fetch their role from your database:
+        try {
+          const snap = await get(ref(db, `users/${user.uid}/role`));
+          const role = snap.val();
+          setIsAdmin(role === 'admin');
+        } catch (err) {
+          console.error('Failed to fetch role:', err);
+          setIsAdmin(false);
+        }
+      } else {
+        setCurrentUser(null);
+        setIsAdmin(false);
+      }
+
+      // Now that we've done both steps, loading is done
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const signIn = (email, pwd) =>
+    signInWithEmailAndPassword(auth, email, pwd);
+
+  const signOut = () =>
+    fbSignOut(auth);
 
   return (
-    <AuthContext.Provider value={{ user, claims, isAdmin, loading }}>
+    <AuthContext.Provider value={{ currentUser, isAdmin, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() {
+  return useContext(AuthContext);
+}
