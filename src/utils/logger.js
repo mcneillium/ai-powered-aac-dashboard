@@ -1,41 +1,40 @@
 // src/utils/logger.js
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAuth } from 'firebase/auth';
+import { ref, push } from 'firebase/database';
+import { db } from '../firebaseConfig';
 
 /**
- * Logs an event by saving it locally to AsyncStorage.
- * Later, these logs can be pushed manually to Firebase.
- *
- * @param {string} action - A description of the event.
- * @param {Object} [metadata={}] - Additional data about the event.
- *   Optional property: targetUserId (the user for whom the action is intended)
+ * Logs an event to Firebase directly (web dashboard version).
+ * Also stores locally in localStorage as a backup.
  */
 export async function logEvent(action, metadata = {}) {
   const auth = getAuth();
   const currentUser = auth.currentUser;
-  // If a targetUserId is provided, use that; otherwise, default to the current user's UID
   const targetUserId = metadata.targetUserId || (currentUser ? currentUser.uid : null);
-  // The carerId is always the current authenticated user performing the action
   const carerId = currentUser ? currentUser.uid : null;
-  
-  // Create the log entry object
+
   const logEntry = {
-    targetUserId, // the user the action is about
-    carerId,      // the caregiver who performed the action
+    targetUserId,
+    carerId,
     action,
     timestamp: Date.now(),
+    source: 'dashboard',
     ...metadata
   };
 
   try {
-    // Retrieve existing logs from AsyncStorage
-    const storedLogs = await AsyncStorage.getItem('userInteractionLog');
-    let logsArray = storedLogs ? JSON.parse(storedLogs) : [];
-    // Append the new log entry
+    const logsRef = ref(db, 'userLogs');
+    await push(logsRef, logEntry);
+  } catch (error) {
+    console.error('Error pushing log to Firebase:', error);
+  }
+
+  try {
+    const stored = localStorage.getItem('dashboardLogs');
+    const logsArray = stored ? JSON.parse(stored) : [];
     logsArray.push(logEntry);
-    // Save the updated logs back to AsyncStorage
-    await AsyncStorage.setItem('userInteractionLog', JSON.stringify(logsArray));
-    console.log('Log saved locally:', logEntry);
+    if (logsArray.length > 200) logsArray.splice(0, logsArray.length - 200);
+    localStorage.setItem('dashboardLogs', JSON.stringify(logsArray));
   } catch (error) {
     console.error('Error saving log locally:', error);
   }

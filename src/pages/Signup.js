@@ -1,69 +1,180 @@
-// Code to create a new user account with email and password
-// The user's name, email, and creation time are stored in the database
-// The user is redirected to the home page after successful sign up
-
+// src/pages/Signup.js
 import React, { useState } from 'react';
-import { Container, TextField, Button, Typography, Box } from '@mui/material';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
-import { getDatabase, ref, set } from 'firebase/database';
 import { useNavigate } from 'react-router-dom';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { ref, set } from 'firebase/database';
+import { auth, db } from '../firebaseConfig';
+import {
+  Box,
+  TextField,
+  Button,
+  Typography,
+  Paper,
+  CircularProgress,
+  Alert,
+  Link,
+  ToggleButton,
+  ToggleButtonGroup
+} from '@mui/material';
+import { toast } from 'react-hot-toast';
 
 export default function Signup() {
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('caregiver');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
-  const auth = getAuth();
-  const db = getDatabase();
 
-  const handleSignUp = async () => {
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    if (!email || !password || !name) {
+      setError('Please fill in all fields.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    setLoading(true);
+    setError('');
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      await set(ref(db, `users/${user.uid}`), {
-        name: name || 'Unnamed User',
-        email: email,
-        createdAt: Date.now()
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await set(ref(db, `users/${cred.user.uid}`), {
+        name,
+        email,
+        role,
+        createdAt: Date.now(),
       });
-      navigate('/home');
-    } catch (error) {
-      alert('Sign up error: ' + error.message);
+      toast.success('Account created successfully');
+      navigate('/home', { replace: true });
+    } catch (err) {
+      const msg = err.code === 'auth/email-already-in-use'
+        ? 'This email is already registered.'
+        : err.message;
+      setError(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Container maxWidth="sm" sx={{ mt: 8 }}>
-      <Typography variant="h4" align="center" gutterBottom>
-        Sign Up
-      </Typography>
-      <Box component="form" noValidate sx={{ mt: 1 }}>
-        <TextField
-          label="Name"
-          fullWidth
-          margin="normal"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <TextField
-          label="Email"
-          fullWidth
-          margin="normal"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          type="email"
-        />
-        <TextField
-          label="Password"
-          fullWidth
-          margin="normal"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          type="password"
-        />
-        <Button variant="contained" fullWidth onClick={handleSignUp} sx={{ mt: 2 }}>
-          Sign Up
-        </Button>
-      </Box>
-    </Container>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: '#f4f6f8',
+        p: 2,
+      }}
+    >
+      <Paper
+        elevation={0}
+        sx={{
+          p: 5,
+          maxWidth: 420,
+          width: '100%',
+          borderRadius: 3,
+          border: '1px solid rgba(0,0,0,0.08)',
+        }}
+      >
+        <Box sx={{ textAlign: 'center', mb: 3 }}>
+          <Typography variant="h4" fontWeight={700} sx={{ color: '#4CAF50', mb: 0.5 }}>
+            CommAI
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Create your account
+          </Typography>
+        </Box>
+
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+        <Box component="form" onSubmit={handleSignup}>
+          <TextField
+            label="Full name"
+            fullWidth
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            sx={{ mb: 2 }}
+            autoFocus
+          />
+          <TextField
+            label="Email"
+            type="email"
+            fullWidth
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            label="Password"
+            type="password"
+            fullWidth
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            label="Confirm password"
+            type="password"
+            fullWidth
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+
+          <Typography variant="body2" sx={{ mb: 1 }}>I am a:</Typography>
+          <ToggleButtonGroup
+            value={role}
+            exclusive
+            onChange={(e, val) => val && setRole(val)}
+            fullWidth
+            sx={{ mb: 3 }}
+          >
+            <ToggleButton value="caregiver" sx={{ textTransform: 'none' }}>Caregiver</ToggleButton>
+            <ToggleButton value="user" sx={{ textTransform: 'none' }}>AAC User</ToggleButton>
+          </ToggleButtonGroup>
+
+          <Button
+            type="submit"
+            variant="contained"
+            fullWidth
+            size="large"
+            disabled={loading}
+            sx={{
+              bgcolor: '#4CAF50',
+              '&:hover': { bgcolor: '#388E3C' },
+              py: 1.5,
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: 16,
+            }}
+          >
+            {loading ? <CircularProgress size={24} color="inherit" /> : 'Create account'}
+          </Button>
+        </Box>
+
+        <Box sx={{ mt: 3, textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary">
+            Already have an account?{' '}
+            <Link
+              component="button"
+              variant="body2"
+              onClick={() => navigate('/login')}
+              sx={{ color: '#4CAF50', fontWeight: 600 }}
+            >
+              Sign in
+            </Link>
+          </Typography>
+        </Box>
+      </Paper>
+    </Box>
   );
 }
