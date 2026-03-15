@@ -26,33 +26,41 @@
     "react-router-dom": "^7.2.0",
     "react-scripts": "^5.0.1",
     "recharts": "^2.15.3",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+
+    "@tensorflow/tfjs": "4.22.0",
+    "@tensorflow/tfjs-core": "4.22.0",
+    "@tensorflow/tfjs-layers": "4.22.0",
+    "@tensorflow/tfjs-converter": "4.22.0",
+    "@tensorflow/tfjs-backend-webgl": "4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "4.22.0",
+    "@tensorflow/tfjs-backend-cpu": "4.22.0"
   },
   "scripts": {
     "start": "craco start",
     "build": "craco build",
     "test": "craco test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "clean": "rimraf node_modules package-lock.json && npm install"
   },
   "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+    "extends": ["react-app", "react-app/jest"]
   },
   "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
   },
   "devDependencies": {
-    "@craco/craco": "^7.1.0"
+    "@craco/craco": "^7.1.0",
+    "rimraf": "^5.0.5"
+  },
+  "overrides": {
+    "@tensorflow/tfjs": "4.22.0",
+    "@tensorflow/tfjs-core": "4.22.0",
+    "@tensorflow/tfjs-layers": "4.22.0",
+    "@tensorflow/tfjs-converter": "4.22.0",
+    "@tensorflow/tfjs-backend-webgl": "4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "4.22.0",
+    "@tensorflow/tfjs-backend-cpu": "4.22.0"
   }
 }
