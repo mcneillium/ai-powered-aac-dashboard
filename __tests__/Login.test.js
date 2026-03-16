@@ -2,12 +2,31 @@ import React from 'react';
 import { render, fireEvent, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Login from '../src/pages/Login';
+import { AuthProvider } from '../src/contexts/AuthContext';
+
+// Mock Firebase
+jest.mock('../src/firebaseConfig', () => ({
+  auth: {},
+  db: {},
+}));
+
+jest.mock('firebase/auth', () => ({
+  getAuth: jest.fn(() => ({})),
+  onAuthStateChanged: jest.fn((auth, cb) => {
+    cb(null);
+    return jest.fn();
+  }),
+  signInWithEmailAndPassword: jest.fn(),
+  signOut: jest.fn(),
+}));
 
 test('renders login form and allows user input', () => {
   render(
-    <BrowserRouter>
-      <Login />
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <Login />
+      </BrowserRouter>
+    </AuthProvider>
   );
 
   const emailInput = screen.getByTestId('emailInput');

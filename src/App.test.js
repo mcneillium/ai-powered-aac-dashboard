@@ -1,8 +1,26 @@
+import React from 'react';
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+// Mock Firebase
+jest.mock('./firebaseConfig', () => ({
+  auth: {},
+  db: {},
+}));
+
+jest.mock('firebase/auth', () => ({
+  getAuth: jest.fn(() => ({})),
+  onAuthStateChanged: jest.fn((auth, cb) => {
+    // Simulate no user logged in
+    cb(null);
+    return jest.fn();
+  }),
+  signInWithEmailAndPassword: jest.fn(),
+  signOut: jest.fn(),
+}));
+
+test('renders login page by default', () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  const loginButton = screen.getByTestId('loginButton');
+  expect(loginButton).toBeInTheDocument();
 });
