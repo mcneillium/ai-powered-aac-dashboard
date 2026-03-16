@@ -26,31 +26,46 @@ function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/home"   element={<Home />} />
 
-          {/* Protected */}
+          {/* Admin-only routes */}
           <Route
             path="/admin"
             element={
-              <PrivateRoute>
+              <PrivateRoute requiredRole="admin">
                 <AdminDashboard />
               </PrivateRoute>
             }
           />
+          <Route
+            path="/user-management"
+            element={
+              <PrivateRoute requiredRole="admin">
+                <UserManagement />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/caregivers"
+            element={
+              <PrivateRoute requiredRole="admin">
+                <Caregivers />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/user-actions/:userId"
+            element={
+              <PrivateRoute requiredRole="admin">
+                <UserActions />
+              </PrivateRoute>
+            }
+          />
 
-          {/* Caregiver dashboard route */}
+          {/* Authenticated routes (any role) */}
           <Route
             path="/caregiver"
             element={
               <PrivateRoute>
                 <CaregiverDashboard />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/caregivers"
-            element={
-              <PrivateRoute>
-                <Caregivers />
               </PrivateRoute>
             }
           />
@@ -75,22 +90,6 @@ function App() {
             element={
               <PrivateRoute>
                 <Logs />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/user-management"
-            element={
-              <PrivateRoute>
-                <UserManagement />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/user-actions/:userId"
-            element={
-              <PrivateRoute>
-                <UserActions />
               </PrivateRoute>
             }
           />
