@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
-import { Container, TextField, Button, CircularProgress, Box } from '@mui/material';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { Container, TextField, Button, CircularProgress, Box, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import logo from '../assets/logo.png';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
-  const auth = getAuth();
+  const { signIn } = useAuth();
 
   const handleLogin = async () => {
     setLoading(true);
+    setError('');
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signIn(email, password);
       const user = userCredential.user;
 
       const tokenResult = await user.getIdTokenResult();
@@ -27,10 +29,8 @@ export default function Login() {
       } else {
         navigate('/home');
       }
-
-    } catch (error) {
-      alert('Login error: ' + error.message);
-      console.error(error);
+    } catch (err) {
+      setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -46,6 +46,11 @@ export default function Login() {
         />
       </Box>
       <Box component="form" noValidate sx={{ mt: 1 }}>
+        {error && (
+          <Typography color="error" variant="body2" sx={{ mb: 1 }}>
+            {error}
+          </Typography>
+        )}
         <TextField
           label="Email"
           fullWidth
@@ -81,7 +86,7 @@ export default function Login() {
             Log In
           </Button>
         )}
-        <Button fullWidth sx={{ mt: 2 }} onClick={() => navigate('/Signup')}>
+        <Button fullWidth sx={{ mt: 2 }} onClick={() => navigate('/signup')}>
           Don't have an account? Sign Up
         </Button>
       </Box>

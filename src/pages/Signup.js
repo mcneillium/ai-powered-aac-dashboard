@@ -4,19 +4,20 @@
 
 import React, { useState } from 'react';
 import { Container, TextField, Button, Typography, Box } from '@mui/material';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
-import { getDatabase, ref, set } from 'firebase/database';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { ref, set } from 'firebase/database';
+import { auth, db } from '../firebaseConfig';
 import { useNavigate } from 'react-router-dom';
 
 export default function Signup() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const navigate = useNavigate();
-  const auth = getAuth();
-  const db = getDatabase();
 
   const handleSignUp = async () => {
+    setError('');
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -26,8 +27,8 @@ export default function Signup() {
         createdAt: Date.now()
       });
       navigate('/home');
-    } catch (error) {
-      alert('Sign up error: ' + error.message);
+    } catch (err) {
+      setError(err.message || 'Sign up failed. Please try again.');
     }
   };
 
@@ -37,6 +38,11 @@ export default function Signup() {
         Sign Up
       </Typography>
       <Box component="form" noValidate sx={{ mt: 1 }}>
+        {error && (
+          <Typography color="error" variant="body2" sx={{ mb: 1 }}>
+            {error}
+          </Typography>
+        )}
         <TextField
           label="Name"
           fullWidth

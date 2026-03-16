@@ -55,10 +55,12 @@ export default function ConnectUser() {
   };
 
   // Filter unassigned users by search term
-  const filteredUsers = unassignedUsers.filter((user) =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredUsers = unassignedUsers.filter((user) => {
+    const userName = (user.name || '').toLowerCase();
+    const userEmail = (user.email || '').toLowerCase();
+    const search = searchTerm.toLowerCase();
+    return userName.includes(search) || userEmail.includes(search);
+  });
 
   return (
     <Container sx={{ py: 4 }}>

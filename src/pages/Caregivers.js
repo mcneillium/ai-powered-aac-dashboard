@@ -32,52 +32,36 @@ import {
 import { toast } from 'react-hot-toast';
 import { AiFillEdit, AiFillDelete } from 'react-icons/ai';
 import Papa from 'papaparse';
-import { getAuth } from 'firebase/auth';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Caregivers() {
+  const { isAdmin } = useAuth();
+
   // State for caregiver data
   const [caregivers, setCaregivers] = useState([]);
   // State for all users (used for connecting with caregivers)
   const [allUsers, setAllUsers] = useState([]);
   // Mapping: caregiver id → selected user id (for connection)
   const [selectedUserForCaregiver, setSelectedUserForCaregiver] = useState({});
-  
+
   // Fields for adding a caregiver manually
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  
+
   // Editing state
   const [editId, setEditId] = useState(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
-  
+
   // Search/filter field
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Delete confirmation dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
-  
+
   // CSV file upload state
   const [csvFile, setCsvFile] = useState(null);
-  
-  // Role state: determine if the current user is an admin
-  const [isAdmin, setIsAdmin] = useState(false);
-  const auth = getAuth();
-
-  // Fetch the current user's custom claims to determine admin status
-  useEffect(() => {
-    if (auth.currentUser) {
-      auth.currentUser.getIdTokenResult()
-        .then((idTokenResult) => {
-          setIsAdmin(idTokenResult.claims.role === 'admin');
-          console.log('User claims:', idTokenResult.claims);
-        })
-        .catch((error) => {
-          console.error('Error fetching token claims:', error);
-        });
-    }
-  }, [auth.currentUser]);
   
   // Listen to caregivers in real time
   useEffect(() => {
@@ -102,10 +86,12 @@ export default function Caregivers() {
   }, []);
 
   // Filter caregivers based on search term
-  const filteredCaregivers = caregivers.filter((cg) =>
-    cg.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cg.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredCaregivers = caregivers.filter((cg) => {
+    const cgName = (cg.name || '').toLowerCase();
+    const cgEmail = (cg.email || '').toLowerCase();
+    const search = searchTerm.toLowerCase();
+    return cgName.includes(search) || cgEmail.includes(search);
+  });
 
   // Unassigned users: those without a caregiverId (available for connection)
   const unassignedUsers = allUsers.filter(user => !user.caregiverId);
@@ -212,9 +198,10 @@ export default function Caregivers() {
     }
     Papa.parse(csvFile, {
       header: true,
-      complete: (results) => {
+      skipEmptyLines: true,
+      complete: async (results) => {
         const data = results.data;
-        data.forEach(async (row, index) => {
+        for (const [index, row] of data.entries()) {
           if (row.name && row.email && /^\S+@\S+\.\S+$/.test(row.email)) {
             try {
               const newRef = push(ref(db, 'caregivers'));
@@ -226,7 +213,7 @@ export default function Caregivers() {
           } else {
             toast.error(`Invalid row data at row ${index + 1}: ${JSON.stringify(row)}`);
           }
-        });
+        }
         toast.success('CSV upload completed.');
         setCsvFile(null);
       },

@@ -15,6 +15,15 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'react-hot-toast';
 import { Visibility, VisibilityOff, LockOutlined, PersonOutlined, Check, Close } from '@mui/icons-material';
 
+// Password validation criteria - stable reference outside component
+const passwordCriteria = [
+  { label: "At least 8 characters", test: pwd => pwd.length >= 8 },
+  { label: "Contains lowercase letter", test: pwd => /[a-z]/.test(pwd) },
+  { label: "Contains uppercase letter", test: pwd => /[A-Z]/.test(pwd) },
+  { label: "Contains number", test: pwd => /\d/.test(pwd) },
+  { label: "Contains special character", test: pwd => /[^A-Za-z0-9]/.test(pwd) }
+];
+
 export default function SetPasswordForm({ prefilledUid, onClose, onSuccess }) {
   const [uid, setUid] = useState(prefilledUid || '');
   const [newPassword, setNewPassword] = useState('');
@@ -25,7 +34,7 @@ export default function SetPasswordForm({ prefilledUid, onClose, onSuccess }) {
   const [success, setSuccess] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [passwordFeedback, setPasswordFeedback] = useState([]);
-  
+
   // Initialize Functions + reference the onCall function
   const functions = getFunctions();
   const setUserPassword = httpsCallable(functions, 'setUserPassword');
@@ -36,15 +45,6 @@ export default function SetPasswordForm({ prefilledUid, onClose, onSuccess }) {
       setUid(prefilledUid);
     }
   }, [prefilledUid]);
-  
-  // Password validation criteria - defined outside useEffect to avoid dependency issues
-  const passwordCriteria = [
-    { label: "At least 8 characters", test: pwd => pwd.length >= 8 },
-    { label: "Contains lowercase letter", test: pwd => /[a-z]/.test(pwd) },
-    { label: "Contains uppercase letter", test: pwd => /[A-Z]/.test(pwd) },
-    { label: "Contains number", test: pwd => /\d/.test(pwd) },
-    { label: "Contains special character", test: pwd => /[^A-Za-z0-9]/.test(pwd) }
-  ];
 
   // Evaluate password strength as password changes
   useEffect(() => {

@@ -1,9 +1,8 @@
 // src/utils/logger.js
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAuth } from 'firebase/auth';
 
 /**
- * Logs an event by saving it locally to AsyncStorage.
+ * Logs an event by saving it locally to localStorage.
  * Later, these logs can be pushed manually to Firebase.
  *
  * @param {string} action - A description of the event.
@@ -17,7 +16,7 @@ export async function logEvent(action, metadata = {}) {
   const targetUserId = metadata.targetUserId || (currentUser ? currentUser.uid : null);
   // The carerId is always the current authenticated user performing the action
   const carerId = currentUser ? currentUser.uid : null;
-  
+
   // Create the log entry object
   const logEntry = {
     targetUserId, // the user the action is about
@@ -28,13 +27,13 @@ export async function logEvent(action, metadata = {}) {
   };
 
   try {
-    // Retrieve existing logs from AsyncStorage
-    const storedLogs = await AsyncStorage.getItem('userInteractionLog');
+    // Retrieve existing logs from localStorage
+    const storedLogs = localStorage.getItem('userInteractionLog');
     let logsArray = storedLogs ? JSON.parse(storedLogs) : [];
     // Append the new log entry
     logsArray.push(logEntry);
-    // Save the updated logs back to AsyncStorage
-    await AsyncStorage.setItem('userInteractionLog', JSON.stringify(logsArray));
+    // Save the updated logs back to localStorage
+    localStorage.setItem('userInteractionLog', JSON.stringify(logsArray));
     console.log('Log saved locally:', logEntry);
   } catch (error) {
     console.error('Error saving log locally:', error);

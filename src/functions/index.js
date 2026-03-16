@@ -6,8 +6,22 @@ admin.initializeApp();
 
 // Existing function for setting user password via HTTPS callable
 exports.setUserPassword = functions.https.onCall(async (data, context) => {
+  // Check that the caller is authenticated and is an admin
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'User must be authenticated to set passwords.'
+    );
+  }
+  if (context.auth.token.role !== 'admin') {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Only admins can set user passwords.'
+    );
+  }
+
   const { uid, newPassword } = data;
-  
+
   // Validate input
   if (!uid || !newPassword) {
     throw new functions.https.HttpsError(

@@ -1,37 +1,38 @@
 // src/contexts/AuthContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
-import { auth, db } from '../firebaseConfig';
-import { ref, get } from 'firebase/database';
+import { auth } from '../firebaseConfig';
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
+  const [userRole, setUserRole]       = useState(null);
   const [isAdmin, setIsAdmin]         = useState(false);
   const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async user => {
       if (user) {
-        // ALWAYS set the Firebase user object
         setCurrentUser(user);
 
-        // THEN fetch their role from your database:
+        // Use custom claims for role detection (consistent with Login.js)
         try {
-          const snap = await get(ref(db, `users/${user.uid}/role`));
-          const role = snap.val();
+          const tokenResult = await user.getIdTokenResult();
+          const role = tokenResult.claims.role || null;
+          setUserRole(role);
           setIsAdmin(role === 'admin');
         } catch (err) {
-          console.error('Failed to fetch role:', err);
+          console.error('Failed to fetch role from token claims:', err);
+          setUserRole(null);
           setIsAdmin(false);
         }
       } else {
         setCurrentUser(null);
+        setUserRole(null);
         setIsAdmin(false);
       }
 
-      // Now that we've done both steps, loading is done
       setLoading(false);
     });
 
@@ -45,7 +46,7 @@ export function AuthProvider({ children }) {
     fbSignOut(auth);
 
   return (
-    <AuthContext.Provider value={{ currentUser, isAdmin, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ currentUser, userRole, isAdmin, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

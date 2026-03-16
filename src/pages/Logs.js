@@ -20,7 +20,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Logs() {
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { currentUser: user, isAdmin, loading: authLoading } = useAuth();
   const [logs, setLogs] = useState([]);
   const [linkedUserIds, setLinkedUserIds] = useState([]);
   const [loading, setLoading] = useState(true);

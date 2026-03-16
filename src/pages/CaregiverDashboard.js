@@ -1,7 +1,8 @@
 // src/pages/CaregiverDashboard.js
 import React, { useEffect, useState } from 'react';
-import { getDatabase, ref, onValue } from 'firebase/database';
-import { getAuth } from 'firebase/auth';
+import { ref, onValue } from 'firebase/database';
+import { db } from '../firebaseConfig';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Box,
   Typography,
@@ -12,15 +13,14 @@ import {
 import SyncStatusCard from '../components/SyncStatusCard';
 
 export default function CaregiverDashboard() {
+  const { currentUser } = useAuth();
   const [assignedUsers, setAssignedUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const auth = getAuth();
-    const caregiverId = auth.currentUser?.uid;
+    const caregiverId = currentUser?.uid;
     if (!caregiverId) return;
 
-    const db = getDatabase();
     const usersRef = ref(db, 'users');
 
     const unsubscribe = onValue(usersRef, (snapshot) => {
@@ -35,7 +35,7 @@ export default function CaregiverDashboard() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [currentUser]);
 
   if (loading) {
     return (

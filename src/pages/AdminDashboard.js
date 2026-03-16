@@ -281,12 +281,16 @@ export default function AdminDashboard() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {users.map(u => (
+              {users.length > 0 ? users.map(u => (
                 <TableRow key={u.id}>
                   <TableCell>{u.name}</TableCell>
                   <TableCell>{u.email}</TableCell>
                 </TableRow>
-              ))}
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={2} align="center">No users found.</TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </TableContainer>
@@ -300,12 +304,16 @@ export default function AdminDashboard() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {caregivers.map(c => (
+              {caregivers.length > 0 ? caregivers.map(c => (
                 <TableRow key={c.id}>
                   <TableCell>{c.name}</TableCell>
                   <TableCell>{c.email}</TableCell>
                 </TableRow>
-              ))}
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={2} align="center">No caregivers found.</TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </TableContainer>
