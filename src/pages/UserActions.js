@@ -1,7 +1,7 @@
 // src/pages/UserActions.js
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, query, orderByChild, limitToLast } from 'firebase/database';
 import { db } from '../firebaseConfig';
 import { Container, Typography, Table, TableHead, TableRow, TableCell, TableBody, Paper, CircularProgress, Box } from '@mui/material';
 
@@ -11,8 +11,8 @@ export default function UserActions() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const logsRef = ref(db, 'userLogs');
-    const unsubscribe = onValue(logsRef, (snapshot) => {
+    const logsQuery = query(ref(db, 'userLogs'), orderByChild('timestamp'), limitToLast(500));
+    const unsubscribe = onValue(logsQuery, (snapshot) => {
       const data = snapshot.val() || {};
       const logsArray = Object.entries(data).map(([id, log]) => ({ id, ...log }));
       // Filter logs where:

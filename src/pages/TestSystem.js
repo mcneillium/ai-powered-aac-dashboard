@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Typography, Button, Box, TextField, Paper } from '@mui/material';
 import { getAuth } from 'firebase/auth';
-import { ref, push, onValue } from 'firebase/database';
+import { ref, push, onValue, query, orderByChild, equalTo } from 'firebase/database';
 import { db } from '../firebaseConfig';
 import { toast } from 'react-hot-toast';
 
@@ -15,13 +15,11 @@ export default function TestSystem() {
   // Listen for activity logs related to the current user
   useEffect(() => {
     if (!currentUser) return;
-    const logsRef = ref(db, 'userLogs');
-    const unsubscribe = onValue(logsRef, (snapshot) => {
+    const logsQuery = query(ref(db, 'userLogs'), orderByChild('userId'), equalTo(currentUser.uid));
+    const unsubscribe = onValue(logsQuery, (snapshot) => {
       const data = snapshot.val() || {};
-      // Filter logs where the userId matches the current user's UID
       const userLogs = Object.entries(data)
-        .map(([id, val]) => ({ id, ...val }))
-        .filter(log => log.userId === currentUser.uid);
+        .map(([id, val]) => ({ id, ...val }));
       setLogs(userLogs);
     });
     return () => unsubscribe();
