@@ -1,85 +1,142 @@
 # AI-Powered AAC Caregiver Dashboard
 
-This repository hosts the **Caregiver Dashboard** for the CommAI project, allowing caregivers to manage user logs, add or edit caregiver profiles, and monitor real-time data from the AAC app. It is built with [React](https://reactjs.org/) and was bootstrapped using [Create React App](https://github.com/facebook/create-react-app).
+A React web dashboard for managing the **CommAI** AAC (Augmentative and Alternative Communication) system. This dashboard is used by **admins** and **caregivers** to manage users, monitor activity, and oversee the companion React Native AAC app.
 
-## Getting Started with Create React App
+## What This Project Does
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+- **Admin Dashboard** — View all users, caregivers, activity logs, and analytics charts
+- **Caregiver Dashboard** — View assigned AAC app users and their sync status
+- **User Management** — Add, edit, and assign users to caregivers (admin only)
+- **Caregiver Management** — Add, edit, delete caregivers; CSV bulk import (admin only)
+- **Activity Logs** — View and filter user interaction logs from the AAC app
+- **Fine-Tune Metrics** — Visualize ML model training progress (loss/accuracy)
+- **Connect User** — Caregivers can self-assign to unassigned AAC app users
 
-### Available Scripts
+## How It Connects to the AAC App
 
-In the project directory, you can run:
+This dashboard shares a **Firebase Realtime Database** backend with the companion React Native AAC app. Both read/write to the same data:
 
-#### `npm start`
+| RTDB Path | Dashboard | AAC App |
+|---|---|---|
+| `users/` | Read/Write (manage users) | Read/Write (user profiles) |
+| `caregivers/` | Read/Write (manage caregivers) | Read |
+| `userLogs/` | Read (view logs) | Write (log user activity) |
+| `userSync/{userId}` | Read (sync status) | Write (last activity) |
+| `fineTuneMetrics/` | Read (charts) | Write (training metrics) |
 
-Runs the app in development mode.  
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+**Do NOT change collection paths or field names** without coordinating with the AAC app team.
 
-The page will reload when you make changes, and you may also see any lint errors in the console.
+## Role & Permission Model
 
-#### `npm test`
+Roles are set via **Firebase Auth custom claims** (set using admin scripts in `credentials/`).
 
-Launches the test runner in the interactive watch mode.  
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+| Role | Access |
+|---|---|
+| `admin` | Full access: all dashboards, user/caregiver management, logs |
+| `caregiver` | Caregiver dashboard, connect user, view own users' logs |
+| (no role) | Redirected to home/login |
 
-#### `npm run build`
+Route protection is enforced via `PrivateRoute` with optional `requiredRole` prop.
 
-Builds the app for production to the `build` folder.  
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Getting Started
 
-The build is minified and the filenames include the hashes.  
-Your app is ready to be deployed!
+### Prerequisites
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+- Node.js 18+
+- A Firebase project with Realtime Database and Authentication enabled
 
-#### `npm run eject`
+### Setup
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+1. Clone the repository
+2. Copy `.env.example` to `.env` and fill in your Firebase config values:
+   ```
+   cp .env.example .env
+   ```
+3. Install dependencies:
+   ```
+   npm install
+   ```
+4. Start the development server:
+   ```
+   npm start
+   ```
+   Open [http://localhost:3000](http://localhost:3000)
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Environment Variables
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc.) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point, you're on your own.
+| Variable | Description |
+|---|---|
+| `REACT_APP_FIREBASE_API_KEY` | Firebase API key |
+| `REACT_APP_FIREBASE_AUTH_DOMAIN` | Firebase auth domain |
+| `REACT_APP_FIREBASE_DATABASE_URL` | Realtime Database URL |
+| `REACT_APP_FIREBASE_PROJECT_ID` | Firebase project ID |
+| `REACT_APP_FIREBASE_STORAGE_BUCKET` | Storage bucket |
+| `REACT_APP_FIREBASE_MESSAGING_SENDER_ID` | Messaging sender ID |
+| `REACT_APP_FIREBASE_APP_ID` | Firebase app ID |
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and medium deployments, and you shouldn’t feel obligated to use this feature. However, we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Setting Up an Admin User
 
-## Learn More
+Use the script in `credentials/AdminSetting/setAdmin.js`:
+```bash
+node credentials/AdminSetting/setAdmin.js
+```
+This sets the `role: "admin"` custom claim on the specified UID.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).  
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Running Tests
 
-### Code Splitting
+```
+npm test
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+Tests cover: login rendering, AuthContext role logic, input sanitization utilities.
 
-### Analyzing the Bundle Size
+## Available Scripts
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+| Command | Description |
+|---|---|
+| `npm start` | Run dev server on port 3000 |
+| `npm test` | Run test suite |
+| `npm run build` | Production build to `build/` |
 
-### Making a Progressive Web App
+## Project Structure
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+```
+src/
+  App.js                    # Routes and app shell
+  PrivateRoute.js           # Auth + role-based route guard
+  firebaseConfig.js         # Firebase initialization
+  theme.js                  # MUI theme (colors, typography)
+  contexts/
+    AuthContext.js           # Auth state, role detection via custom claims
+  components/
+    ErrorBoundary.js         # Top-level crash recovery UI
+    SyncStatusCard.js        # User last-sync display
+    DashboardCharts.js       # Memoized chart components
+    chartOptions.js          # Shared Chart.js configuration
+  pages/
+    Login.js                 # Email/password login
+    Signup.js                # User registration
+    Home.js                  # Role-based redirect
+    AdminDashboard.js        # Admin overview with charts and tables
+    CaregiverDashboard.js    # Caregiver's assigned users view
+    Caregivers.js            # Admin caregiver CRUD
+    ConnectUser.js           # Caregiver self-assignment
+    UserManagement.js        # Admin user CRUD
+    UserActions.js           # Per-user activity log
+    Logs.js                  # Filterable activity log
+    FineTuneMetrics.js       # ML training charts
+    SetPasswordForm.js       # Admin password reset form
+  services/
+    firebase.js              # Centralized RTDB helpers and path constants
+  utils/
+    sanitize.js              # Input sanitization helpers
+    logger.js                # Local activity logging utility
+```
 
-### Advanced Configuration
+## Security Notes
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
-
----
-
-## Project Overview
-
-**AI-Powered AAC Caregiver Dashboard** is designed to:
-- Allow caregivers to **log in** and securely manage user interactions.
-- Display or edit **caregiver profiles** and real-time data (logs, usage stats).
-- Provide a foundation for adding advanced analytics or AI-driven features in the future.
-
-For more details on how to set up Firebase or another backend, please consult the [documentation in the repository](./firebaseConfig.js) or [Firebase docs](https://firebase.google.com/docs).
-
-We hope this dashboard simplifies caregiver workflows and enhances accessibility for users of the AI-powered AAC system.
+- Firebase config values should be set via environment variables (see `.env.example`)
+- Service account keys must NEVER be committed to git (see `.gitignore`)
+- The `setUserPassword` Cloud Function requires admin authentication
+- All user inputs are sanitizable via `src/utils/sanitize.js`
+- No `dangerouslySetInnerHTML` is used anywhere in the codebase

@@ -5,6 +5,19 @@ import { auth } from '../firebaseConfig';
 
 const AuthContext = createContext();
 
+/**
+ * Provides authentication state and methods to the component tree.
+ * Listens for Firebase Auth state changes and resolves the user's role
+ * from custom claims.
+ *
+ * Context value:
+ * - currentUser {Object|null} - Firebase Auth user object
+ * - userRole {string|null} - Role from custom claims ('admin', 'caregiver', or null)
+ * - isAdmin {boolean} - Shorthand for userRole === 'admin'
+ * - loading {boolean} - True while auth state is being resolved
+ * - signIn {Function} - (email, password) => Promise
+ * - signOut {Function} - () => Promise
+ */
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole]       = useState(null);
@@ -52,6 +65,11 @@ export function AuthProvider({ children }) {
   );
 }
 
+/**
+ * Hook to access the AuthContext value.
+ * Must be used within an AuthProvider.
+ * @returns {{ currentUser: Object|null, userRole: string|null, isAdmin: boolean, loading: boolean, signIn: Function, signOut: Function }}
+ */
 export function useAuth() {
   return useContext(AuthContext);
 }
