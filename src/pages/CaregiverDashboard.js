@@ -40,7 +40,7 @@ export default function CaregiverDashboard() {
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <CircularProgress size={60} sx={{ color: '#4CAF50' }} />
+        <CircularProgress size={60} color="primary" />
       </Box>
     );
   }
@@ -50,14 +50,25 @@ export default function CaregiverDashboard() {
       <Typography variant="h4" fontWeight="bold" gutterBottom>
         Caregiver Dashboard
       </Typography>
-      {assignedUsers.map((user) => (
-        <Paper key={user.uid} sx={{ mb: 3, p: 2, borderRadius: 2, backgroundColor: '#f1f8e9' }}>
-          <Typography variant="subtitle1" fontWeight={600}>
-            {user.email}
+      {assignedUsers.length > 0 ? (
+        assignedUsers.map((user) => (
+          <Paper key={user.uid} sx={{ mb: 3, p: 2, borderRadius: 2, bgcolor: 'background.highlight' }}>
+            <Typography variant="subtitle1" fontWeight={600}>
+              {user.name || user.email}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              {user.email}
+            </Typography>
+            <SyncStatusCard userId={user.uid} />
+          </Paper>
+        ))
+      ) : (
+        <Paper sx={{ p: 3, textAlign: 'center' }}>
+          <Typography variant="body1" color="text.secondary">
+            No users assigned to you yet. Use the Connect User page to link with users.
           </Typography>
-          <SyncStatusCard userId={user.uid} />
         </Paper>
-      ))}
+      )}
     </Container>
   );
 }

@@ -300,7 +300,7 @@ export default function Caregivers() {
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
-            <TableRow sx={{ backgroundColor: '#f2f2f2' }}>
+            <TableRow sx={{ bgcolor: 'background.default' }}>
               <TableCell>ID</TableCell>
               <TableCell>Name</TableCell>
               <TableCell>Email</TableCell>

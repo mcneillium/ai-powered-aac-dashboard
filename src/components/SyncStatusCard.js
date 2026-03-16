@@ -24,7 +24,7 @@ export default function SyncStatusCard({ userId }) {
   }, [userId]);
 
   return (
-    <Paper sx={{ p: 2, backgroundColor: '#f0f4f8', borderRadius: 2, mb: 2 }}>
+    <Paper sx={{ p: 2, bgcolor: 'background.subtle', borderRadius: 2, mb: 2 }}>
       <Typography variant="subtitle1" fontWeight={600} color="text.primary">
         Last Sync
       </Typography>

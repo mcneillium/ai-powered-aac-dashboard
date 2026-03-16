@@ -102,7 +102,7 @@ export default function Logs() {
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
-            <TableRow sx={{ backgroundColor: '#f2f2f2' }}>
+            <TableRow sx={{ bgcolor: 'background.default' }}>
               <TableCell><strong>User ID</strong></TableCell>
               <TableCell><strong>Log ID</strong></TableCell>
               <TableCell><strong>Action</strong></TableCell>

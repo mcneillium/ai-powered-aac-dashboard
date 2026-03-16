@@ -3,11 +3,12 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../firebaseConfig';
-import { Container, Typography, Table, TableHead, TableRow, TableCell, TableBody, Paper } from '@mui/material';
+import { Container, Typography, Table, TableHead, TableRow, TableCell, TableBody, Paper, CircularProgress, Box } from '@mui/material';
 
 export default function UserActions() {
   const { userId } = useParams();
   const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const logsRef = ref(db, 'userLogs');
@@ -24,9 +25,18 @@ export default function UserActions() {
         return log.userId === userId;
       });
       setLogs(filteredLogs);
+      setLoading(false);
     });
     return () => unsubscribe();
   }, [userId]);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Container sx={{ py: 4 }}>

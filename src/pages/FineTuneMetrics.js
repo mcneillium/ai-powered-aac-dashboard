@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../firebaseConfig';
-import { Container, Typography, Paper } from '@mui/material';
+import { Container, Typography, Paper, CircularProgress, Box } from '@mui/material';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -19,19 +19,27 @@ ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Title, T
 
 export default function FineTuneMetrics() {
   const [metrics, setMetrics] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const metricsRef = ref(db, 'fineTuneMetrics');
     const unsubscribe = onValue(metricsRef, (snapshot) => {
       const data = snapshot.val() || {};
       const metricsArray = Object.entries(data).map(([id, entry]) => ({ id, ...entry }));
-      console.log("Fetched fineTuneMetrics:", metricsArray);
-      // Sort metrics by epoch number.
       metricsArray.sort((a, b) => a.epoch - b.epoch);
       setMetrics(metricsArray);
+      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   if (metrics.length === 0) {
     return (
