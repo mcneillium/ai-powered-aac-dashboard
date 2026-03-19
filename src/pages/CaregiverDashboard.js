@@ -1,7 +1,8 @@
 // src/pages/CaregiverDashboard.js
-import React, { useEffect, useState } from 'react';
-import { getDatabase, ref, onValue, query, orderByChild, limitToLast } from 'firebase/database';
-import { getAuth } from 'firebase/auth';
+import React, { useEffect, useState, useMemo } from 'react';
+import { ref, onValue, get, query, orderByChild, limitToLast } from 'firebase/database';
+import { db } from '../firebaseConfig';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Box,
   Typography,
@@ -24,53 +25,53 @@ import PeopleIcon from '@mui/icons-material/People';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import { DB_PATHS, getUserDisplayName, getLogUserId } from '../shared/schema';
 
 export default function CaregiverDashboard() {
+  const { currentUser } = useAuth();
   const [assignedUsers, setAssignedUsers] = useState([]);
   const [recentLogs, setRecentLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const auth = getAuth();
-    const caregiverId = auth.currentUser?.uid;
-    if (!caregiverId) return;
-
-    const db = getDatabase();
-
-    // Fetch assigned users
-    const usersUnsubscribe = onValue(ref(db, 'users'), (snapshot) => {
+    if (!currentUser?.uid) return;
+    const usersRef = ref(db, DB_PATHS.USERS);
+    const unsubscribe = onValue(usersRef, (snapshot) => {
       const data = snapshot.val();
       const filtered = data
         ? Object.entries(data)
-            .filter(([uid, info]) => info.caregiverId === caregiverId)
+            .filter(([, info]) => info.caregiverId === currentUser.uid)
             .map(([uid, info]) => ({ uid, ...info }))
         : [];
       setAssignedUsers(filtered);
       setLoading(false);
     });
+    return () => unsubscribe();
+  }, [currentUser]);
 
-    // Fetch recent logs for assigned users
-    const logsQuery = query(
-      ref(db, 'userLogs'),
-      orderByChild('timestamp'),
-      limitToLast(50)
-    );
-    const logsUnsubscribe = onValue(logsQuery, (snapshot) => {
-      const data = snapshot.val() || {};
-      const arr = Object.entries(data)
-        .map(([id, log]) => ({ id, ...log }))
-        .filter((log) => log.carerId === caregiverId || log.targetUserId)
-        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-        .slice(0, 20);
-      setRecentLogs(arr);
-    });
+  useEffect(() => {
+    if (assignedUsers.length === 0) return;
+    const assignedUids = new Set(assignedUsers.map(u => u.uid));
+    get(query(ref(db, DB_PATHS.USER_LOGS), orderByChild('timestamp'), limitToLast(100)))
+      .then(snap => {
+        const all = Object.entries(snap.val() || {})
+          .map(([id, v]) => ({ id, ...v }))
+          .filter(l => {
+            const uid = getLogUserId(l);
+            return uid && assignedUids.has(uid);
+          })
+          .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        setRecentLogs(all.slice(0, 20));
+      })
+      .catch(() => setRecentLogs([]));
+  }, [assignedUsers]);
 
-    return () => {
-      usersUnsubscribe();
-      logsUnsubscribe();
-    };
-  }, []);
+  const userNameMap = useMemo(() => {
+    const map = {};
+    assignedUsers.forEach(u => { map[u.uid] = getUserDisplayName(u); });
+    return map;
+  }, [assignedUsers]);
 
   if (loading) {
     return (
@@ -93,7 +94,6 @@ export default function CaregiverDashboard() {
         Monitor your assigned users' activity and communication progress.
       </Typography>
 
-      {/* Stats cards */}
       <Grid container spacing={2} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
           <Card sx={{ borderLeft: '4px solid #4CAF50' }}>
@@ -136,7 +136,7 @@ export default function CaregiverDashboard() {
                 <Typography variant="body2" color="text.secondary">Active today</Typography>
               </Box>
               <Typography variant="h4" fontWeight={600} sx={{ mt: 1 }}>
-                {new Set(todayLogs.map((l) => l.targetUserId || l.userId)).size}
+                {new Set(todayLogs.map((l) => getLogUserId(l)).filter(Boolean)).size}
               </Typography>
             </CardContent>
           </Card>
@@ -144,7 +144,6 @@ export default function CaregiverDashboard() {
       </Grid>
 
       <Grid container spacing={3}>
-        {/* User cards */}
         <Grid item xs={12} md={7}>
           <Typography variant="h6" fontWeight={600} gutterBottom>Your users</Typography>
           {assignedUsers.length === 0 ? (
@@ -159,11 +158,11 @@ export default function CaregiverDashboard() {
               <Paper key={user.uid} sx={{ mb: 2, p: 2, borderRadius: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
                   <Avatar sx={{ bgcolor: '#4CAF50', width: 36, height: 36, fontSize: 14 }}>
-                    {(user.name || user.email || '?')[0].toUpperCase()}
+                    {(getUserDisplayName(user))[0].toUpperCase()}
                   </Avatar>
                   <Box sx={{ flex: 1 }}>
                     <Typography variant="subtitle1" fontWeight={600}>
-                      {user.name || 'Unnamed user'}
+                      {getUserDisplayName(user)}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       {user.email}
@@ -183,7 +182,6 @@ export default function CaregiverDashboard() {
           )}
         </Grid>
 
-        {/* Recent activity */}
         <Grid item xs={12} md={5}>
           <Typography variant="h6" fontWeight={600} gutterBottom>Recent activity</Typography>
           <Paper sx={{ maxHeight: 500, overflow: 'auto' }}>
@@ -193,23 +191,29 @@ export default function CaregiverDashboard() {
               </Box>
             ) : (
               <List disablePadding>
-                {recentLogs.slice(0, 15).map((log, idx) => (
-                  <React.Fragment key={log.id}>
-                    {idx > 0 && <Divider />}
-                    <ListItem sx={{ py: 1 }}>
-                      <ListItemText
-                        primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="body2">{log.action}</Typography>
-                          </Box>
-                        }
-                        secondary={
-                          log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'
-                        }
-                      />
-                    </ListItem>
-                  </React.Fragment>
-                ))}
+                {recentLogs.slice(0, 15).map((log, idx) => {
+                  const uid = getLogUserId(log);
+                  return (
+                    <React.Fragment key={log.id}>
+                      {idx > 0 && <Divider />}
+                      <ListItem sx={{ py: 1 }}>
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2">{log.action}</Typography>
+                              {uid && userNameMap[uid] && (
+                                <Chip label={userNameMap[uid]} size="small" variant="outlined" />
+                              )}
+                            </Box>
+                          }
+                          secondary={
+                            log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'
+                          }
+                        />
+                      </ListItem>
+                    </React.Fragment>
+                  );
+                })}
               </List>
             )}
           </Paper>

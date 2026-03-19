@@ -13,6 +13,9 @@ import {
   Link
 } from '@mui/material';
 import { toast } from 'react-hot-toast';
+import { ref, get } from 'firebase/database';
+import { db } from '../firebaseConfig';
+import { ROLES } from '../shared/schema';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -31,9 +34,23 @@ export default function Login() {
     setLoading(true);
     setError('');
     try {
-      await signIn(email, password);
-      toast.success('Logged in successfully');
-      navigate('/home', { replace: true });
+      const userCredential = await signIn(email, password);
+      const user = userCredential.user;
+
+      // Read role from database (single source of truth)
+      const snap = await get(ref(db, `users/${user.uid}/role`));
+      const role = snap.val();
+
+      if (role === ROLES.ADMIN) {
+        toast.success('Logged in successfully');
+        navigate('/admin', { replace: true });
+      } else if (role === ROLES.CAREGIVER) {
+        toast.success('Logged in successfully');
+        navigate('/caregiver', { replace: true });
+      } else {
+        setError('This dashboard is for caregivers and administrators only.');
+        return;
+      }
     } catch (err) {
       const msg = err.code === 'auth/invalid-credential'
         ? 'Invalid email or password.'
@@ -43,6 +60,12 @@ export default function Login() {
       setError(msg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !loading) {
+      handleLogin();
     }
   };
 
