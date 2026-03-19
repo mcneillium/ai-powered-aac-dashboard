@@ -12,6 +12,7 @@ import {
   CircularProgress,
   Chip
 } from '@mui/material';
+import { DB_PATHS } from '../shared/schema';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -32,7 +33,7 @@ export default function FineTuneMetrics() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const metricsRef = ref(db, 'fineTuneMetrics');
+    const metricsRef = ref(db, DB_PATHS.FINE_TUNE_METRICS);
     const unsubscribe = onValue(metricsRef, (snapshot) => {
       const data = snapshot.val() || {};
       const arr = Object.entries(data)
@@ -123,7 +124,6 @@ export default function FineTuneMetrics() {
         </Paper>
       ) : (
         <>
-          {/* Stats cards */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid item xs={6} md={3}>
               <Card>
@@ -138,7 +138,7 @@ export default function FineTuneMetrics() {
                 <CardContent>
                   <Typography variant="caption" color="text.secondary">Latest loss</Typography>
                   <Typography variant="h4" fontWeight={600} color="error.main">
-                    {latestLoss?.toFixed(4) || '—'}
+                    {latestLoss?.toFixed(4) || '\u2014'}
                   </Typography>
                 </CardContent>
               </Card>
@@ -148,7 +148,7 @@ export default function FineTuneMetrics() {
                 <CardContent>
                   <Typography variant="caption" color="text.secondary">Latest accuracy</Typography>
                   <Typography variant="h4" fontWeight={600} color="success.main">
-                    {latestAcc ? `${(latestAcc * 100).toFixed(1)}%` : '—'}
+                    {latestAcc ? `${(latestAcc * 100).toFixed(1)}%` : '\u2014'}
                   </Typography>
                 </CardContent>
               </Card>
@@ -158,7 +158,7 @@ export default function FineTuneMetrics() {
                 <CardContent>
                   <Typography variant="caption" color="text.secondary">Loss improvement</Typography>
                   <Typography variant="h4" fontWeight={600} color="info.main">
-                    {improvement ? `${improvement}%` : '—'}
+                    {improvement ? `${improvement}%` : '\u2014'}
                   </Typography>
                   {improvement && (
                     <Chip
@@ -173,7 +173,6 @@ export default function FineTuneMetrics() {
             </Grid>
           </Grid>
 
-          {/* Chart */}
           <Paper sx={{ p: 3, height: 400 }}>
             <Typography variant="h6" gutterBottom>Training progress</Typography>
             <Box sx={{ height: 320 }}>

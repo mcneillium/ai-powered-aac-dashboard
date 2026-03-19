@@ -17,13 +17,14 @@ import {
   ToggleButtonGroup
 } from '@mui/material';
 import { toast } from 'react-hot-toast';
+import { ROLES, DB_PATHS } from '../shared/schema';
 
 export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState('caregiver');
+  const [role, setRole] = useState(ROLES.CAREGIVER);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -46,8 +47,8 @@ export default function Signup() {
     setError('');
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
-      await set(ref(db, `users/${cred.user.uid}`), {
-        name,
+      await set(ref(db, `${DB_PATHS.USERS}/${cred.user.uid}`), {
+        name: name || 'Unnamed User',
         email,
         role,
         createdAt: Date.now(),
@@ -138,8 +139,8 @@ export default function Signup() {
             fullWidth
             sx={{ mb: 3 }}
           >
-            <ToggleButton value="caregiver" sx={{ textTransform: 'none' }}>Caregiver</ToggleButton>
-            <ToggleButton value="user" sx={{ textTransform: 'none' }}>AAC User</ToggleButton>
+            <ToggleButton value={ROLES.CAREGIVER} sx={{ textTransform: 'none' }}>Caregiver</ToggleButton>
+            <ToggleButton value={ROLES.USER} sx={{ textTransform: 'none' }}>AAC User</ToggleButton>
           </ToggleButtonGroup>
 
           <Button

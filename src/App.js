@@ -14,7 +14,6 @@ import Home from './pages/Home';
 // Protected pages
 import AdminDashboard from './pages/AdminDashboard';
 import CaregiverDashboard from './pages/CaregiverDashboard';
-import Caregivers from './pages/Caregivers';
 import ConnectUser from './pages/ConnectUser';
 import FineTuneMetrics from './pages/FineTuneMetrics';
 import Logs from './pages/Logs';
@@ -25,6 +24,8 @@ import TestSystem from './pages/TestSystem';
 import Notifications from './Notifications';
 import FeedbackAdmin from './pages/FeedbackAdmin';
 import SystemSettings from './pages/SystemSettings';
+import UserSettings from './pages/UserSettings';
+import Feedback from './pages/Feedback';
 
 function ProtectedPage({ children }) {
   return (
@@ -50,8 +51,9 @@ function App() {
           <Route path="/admin" element={<ProtectedPage><AdminDashboard /></ProtectedPage>} />
           <Route path="/user-management" element={<ProtectedPage><UserManagement /></ProtectedPage>} />
           <Route path="/user-actions/:userId" element={<ProtectedPage><UserActions /></ProtectedPage>} />
-          <Route path="/caregivers" element={<ProtectedPage><Caregivers /></ProtectedPage>} />
+          <Route path="/user-settings/:userId" element={<ProtectedPage><UserSettings /></ProtectedPage>} />
           <Route path="/feedback-admin" element={<ProtectedPage><FeedbackAdmin /></ProtectedPage>} />
+          <Route path="/feedback" element={<ProtectedPage><Feedback /></ProtectedPage>} />
           <Route path="/system-settings" element={<ProtectedPage><SystemSettings /></ProtectedPage>} />
           <Route path="/test-system" element={<ProtectedPage><TestSystem /></ProtectedPage>} />
 
