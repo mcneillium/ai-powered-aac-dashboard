@@ -17,11 +17,6 @@ jest.mock('firebase/auth', () => ({
   signOut: jest.fn(() => Promise.resolve()),
 }));
 
-jest.mock('firebase/database', () => ({
-  ref: jest.fn(),
-  get: jest.fn(() => Promise.resolve({ val: () => 'admin' })),
-}));
-
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
 
 function TestConsumer() {
@@ -63,7 +58,7 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('isAdmin').textContent).toBe('false');
   });
 
-  test('sets admin role when user has admin role in database', async () => {
+  test('sets admin role from custom claims only (not database)', async () => {
     const mockUser = {
       uid: 'admin-123',
       email: 'admin@test.com',
@@ -83,6 +78,52 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('hasUser').textContent).toBe('true');
     expect(screen.getByTestId('isAdmin').textContent).toBe('true');
     expect(screen.getByTestId('isCaregiver').textContent).toBe('false');
+    expect(screen.getByTestId('userRole').textContent).toBe('admin');
+  });
+
+  test('sets caregiver role from custom claims', async () => {
+    const mockUser = {
+      uid: 'carer-456',
+      email: 'carer@test.com',
+      getIdTokenResult: jest.fn(() => Promise.resolve({ claims: { role: 'caregiver' } })),
+    };
+
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    );
+
+    await act(async () => {
+      await authCallback(mockUser);
+    });
+
+    expect(screen.getByTestId('isAdmin').textContent).toBe('false');
+    expect(screen.getByTestId('isCaregiver').textContent).toBe('true');
+    expect(screen.getByTestId('userRole').textContent).toBe('caregiver');
+  });
+
+  test('sets null role when no custom claim present', async () => {
+    const mockUser = {
+      uid: 'norole-789',
+      email: 'norole@test.com',
+      getIdTokenResult: jest.fn(() => Promise.resolve({ claims: {} })),
+    };
+
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    );
+
+    await act(async () => {
+      await authCallback(mockUser);
+    });
+
+    expect(screen.getByTestId('hasUser').textContent).toBe('true');
+    expect(screen.getByTestId('isAdmin').textContent).toBe('false');
+    expect(screen.getByTestId('isCaregiver').textContent).toBe('false');
+    expect(screen.getByTestId('userRole').textContent).toBe('none');
   });
 
   test('throws when useAuth is used outside provider', () => {

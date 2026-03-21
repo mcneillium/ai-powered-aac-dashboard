@@ -1,67 +1,126 @@
 // src/pages/UserActions.js
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../firebaseConfig';
-import { Container, Typography, Table, TableHead, TableRow, TableCell, TableBody, Paper } from '@mui/material';
+import {
+  Container,
+  Typography,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  TableContainer,
+  Paper,
+  Box,
+  CircularProgress,
+  Chip,
+  TablePagination,
+  Button,
+} from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 export default function UserActions() {
   const { userId } = useParams();
+  const navigate = useNavigate();
   const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
 
   useEffect(() => {
     const logsRef = ref(db, 'userLogs');
     const unsubscribe = onValue(logsRef, (snapshot) => {
       const data = snapshot.val() || {};
-      const logsArray = Object.entries(data).map(([id, log]) => ({ id, ...log }));
-      // Filter logs where:
-      // - If the log has a targetUserId, then it must equal the userId from the URL.
-      // - Otherwise, if it doesn't have targetUserId, fall back to comparing log.userId.
-      const filteredLogs = logsArray.filter((log) => {
-        if (log.targetUserId !== undefined) {
-          return log.targetUserId === userId;
-        }
-        return log.userId === userId;
-      });
+      const filteredLogs = Object.entries(data)
+        .map(([id, log]) => ({ id, ...log }))
+        .filter((log) => {
+          if (log.targetUserId !== undefined) {
+            return log.targetUserId === userId;
+          }
+          return log.userId === userId;
+        })
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
       setLogs(filteredLogs);
+      setLoading(false);
     });
     return () => unsubscribe();
   }, [userId]);
 
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
-    <Container sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Actions for User: {userId}
-      </Typography>
+    <Container maxWidth="xl" sx={{ py: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)} size="small">
+          Back
+        </Button>
+        <Box>
+          <Typography variant="h4">User Actions</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {logs.length} action{logs.length !== 1 ? 's' : ''} recorded
+          </Typography>
+        </Box>
+      </Box>
+
       <Paper>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell><strong>{'Target User ID / User ID'}</strong></TableCell>
-              <TableCell><strong>Carer ID</strong></TableCell>
-              <TableCell><strong>Log ID</strong></TableCell>
-              <TableCell><strong>Action</strong></TableCell>
-              <TableCell><strong>Timestamp</strong></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {logs.length > 0 ? (
-              logs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell>{log.targetUserId || log.userId}</TableCell>
-                  <TableCell>{log.carerId || 'N/A'}</TableCell>
-                  <TableCell>{log.id}</TableCell>
-                  <TableCell>{log.action}</TableCell>
-                  <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
-                </TableRow>
-              ))
-            ) : (
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={5}>No actions found for this user.</TableCell>
+                <TableCell>Action</TableCell>
+                <TableCell>Performed By</TableCell>
+                <TableCell>Timestamp</TableCell>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHead>
+            <TableBody>
+              {logs
+                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                .map((log) => (
+                  <TableRow key={log.id} hover>
+                    <TableCell>
+                      <Chip label={log.action} size="small" variant="outlined" />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {log.carerId || '-'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              {logs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
+                    <Typography color="text.secondary">No actions found for this user.</Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        {logs.length > 0 && (
+          <TablePagination
+            component="div"
+            count={logs.length}
+            page={page}
+            onPageChange={(_, p) => setPage(p)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+            rowsPerPageOptions={[25, 50, 100]}
+          />
+        )}
       </Paper>
     </Container>
   );

@@ -1,20 +1,22 @@
 // src/components/SyncStatusCard.js
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Paper } from '@mui/material';
-import { getDatabase, ref, onValue } from 'firebase/database';
+import { Box, Typography } from '@mui/material';
+import { ref, onValue } from 'firebase/database';
+import { db } from '../firebaseConfig';
+import SyncIcon from '@mui/icons-material/Sync';
+import SyncDisabledIcon from '@mui/icons-material/SyncDisabled';
 
 export default function SyncStatusCard({ userId }) {
   const [lastActive, setLastActive] = useState(null);
 
   useEffect(() => {
     if (!userId) return;
-    const db = getDatabase();
     const syncRef = ref(db, `userSync/${userId}`);
 
     const unsubscribe = onValue(syncRef, (snapshot) => {
       const data = snapshot.val();
       if (data && data.lastActivity) {
-        setLastActive(new Date(data.lastActivity).toLocaleString());
+        setLastActive(new Date(data.lastActivity));
       } else {
         setLastActive(null);
       }
@@ -23,14 +25,18 @@ export default function SyncStatusCard({ userId }) {
     return () => unsubscribe();
   }, [userId]);
 
+  const isRecent = lastActive && (Date.now() - lastActive.getTime()) < 24 * 60 * 60 * 1000;
+
   return (
-    <Paper sx={{ p: 2, backgroundColor: '#f0f4f8', borderRadius: 2, mb: 2 }}>
-      <Typography variant="subtitle1" fontWeight={600} color="text.primary">
-        Last Sync
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+      {lastActive ? (
+        <SyncIcon sx={{ fontSize: 18, color: isRecent ? 'success.main' : 'text.secondary' }} />
+      ) : (
+        <SyncDisabledIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
+      )}
+      <Typography variant="body2" color={isRecent ? 'text.primary' : 'text.secondary'}>
+        {lastActive ? `Last sync: ${lastActive.toLocaleString()}` : 'No activity logged yet'}
       </Typography>
-      <Typography variant="body2" color="text.secondary" mt={1}>
-        {lastActive || 'No activity logged yet'}
-      </Typography>
-    </Paper>
+    </Box>
   );
 }

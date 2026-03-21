@@ -1,8 +1,7 @@
 // src/contexts/AuthContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
-import { auth, db } from '../firebaseConfig';
-import { ref, get } from 'firebase/database';
+import { auth } from '../firebaseConfig';
 
 const AuthContext = createContext();
 
@@ -24,19 +23,13 @@ export function AuthProvider({ children }) {
       if (user) {
         setCurrentUser(user);
 
-        // Try custom claims first (more secure), fall back to database
+        // Role MUST come from Firebase custom claims (server-set, tamper-proof).
+        // Never trust client-writable database fields for authorization.
         try {
           const tokenResult = await user.getIdTokenResult();
-          const claimRole = tokenResult.claims.role;
-          if (claimRole) {
-            setUserRole(claimRole);
-          } else {
-            // Fallback to database role
-            const snap = await get(ref(db, `users/${user.uid}/role`));
-            setUserRole(snap.val() || null);
-          }
+          setUserRole(tokenResult.claims.role || null);
         } catch (err) {
-          console.error('Failed to fetch role:', err);
+          console.error('Failed to fetch role from claims:', err);
           setUserRole(null);
         }
       } else {

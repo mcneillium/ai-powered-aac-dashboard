@@ -1,5 +1,52 @@
 # Dashboard Change Log
 
+## 2026-03-21 - Security Hardening & Production Readiness Pass
+
+### Security Hardening
+- **Removed database role fallback from AuthContext** - Roles now sourced EXCLUSIVELY from Firebase custom claims (tamper-proof). Database fallback was a privilege escalation vector.
+- **Created Firebase Realtime Database security rules** (`database.rules.json`) - Per-node access control: role writes admin-only, caregiver assignment scoped, log validation, default-deny on unknown paths.
+- **Added database rules to firebase.json** - Deployable via `firebase deploy --only database`.
+- **Created post-rotation verification checklist** - Full incident response documentation for compromised keys.
+- **Created secret-handling guide** - Covers env vars, service account management, pre-commit prevention, incident response.
+
+### Dependency Cleanup
+- **Removed `firebase-admin` from client package.json** - Server-side SDK incorrectly in client bundle; already in `functions/package.json`.
+- **Removed `react-icons`** - Unused after refactor (MUI icons used throughout).
+- **Removed `recharts`** - Unused duplicate charting library (chart.js already in use).
+
+### Code Quality
+- **UserActions page** - Added loading state, pagination, back navigation, consistent theme styling, removed raw ID display.
+- **FineTuneMetrics page** - Added loading state, removed `console.log` data leak, themed chart colors.
+- **SyncStatusCard** - Replaced hardcoded `#f0f4f8` with theme-aware styling, added active/inactive icon.
+- **AdminDashboard** - Removed unused `uniqueActions` computed value.
+- **DashboardLayout** - Removed unused `AssessmentIcon` import.
+
+### Test Coverage (expanded)
+- **AuthContext tests** - Added caregiver role test, null-claim test (6 tests total, up from 4).
+- **Cloud Functions security tests** - 8 new tests verifying auth, RBAC, validation, CORS, method restriction, logging safety, error handling.
+- **Total: 29 tests across 6 files** (up from 19 across 5 files).
+
+### Documentation
+- `/docs/security/secret-handling.md` - NEW
+- `/docs/security/post-rotation-verification.md` - NEW
+- `/docs/audit/final-dashboard-audit.md` - NEW
+- `/docs/dashboard/dashboard-release-readiness.md` - NEW (includes shared contracts)
+
+### Files Changed
+- `src/contexts/AuthContext.js` - Removed database role fallback
+- `src/pages/UserActions.js` - Loading, pagination, styling
+- `src/pages/FineTuneMetrics.js` - Loading, removed console.log, theme
+- `src/pages/AdminDashboard.js` - Removed dead code
+- `src/components/SyncStatusCard.js` - Theme-aware redesign
+- `src/components/layout/DashboardLayout.js` - Removed unused import
+- `database.rules.json` - NEW: Firebase RTDB security rules
+- `firebase.json` - Added database rules config
+- `package.json` - Removed firebase-admin, react-icons, recharts
+- `__tests__/AuthContext.test.js` - Expanded tests
+- `__tests__/cloudFunctions.test.js` - NEW: 8 security contract tests
+
+---
+
 ## 2026-03-21 - Architecture, Security & UX Overhaul
 
 ### Security

@@ -25,7 +25,6 @@ import {
   Dashboard as DashboardIcon,
   People as PeopleIcon,
   PersonAdd as PersonAddIcon,
-  Assessment as AssessmentIcon,
   ListAlt as LogsIcon,
   Logout as LogoutIcon,
   Psychology as MLIcon,

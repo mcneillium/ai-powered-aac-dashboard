@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../firebaseConfig';
-import { Container, Typography, Paper } from '@mui/material';
+import { Container, Typography, Paper, Box, CircularProgress } from '@mui/material';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -12,36 +12,43 @@ import {
   PointElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
 } from 'chart.js';
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Title, Tooltip, Legend);
 
 export default function FineTuneMetrics() {
   const [metrics, setMetrics] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const metricsRef = ref(db, 'fineTuneMetrics');
     const unsubscribe = onValue(metricsRef, (snapshot) => {
       const data = snapshot.val() || {};
-      const metricsArray = Object.entries(data).map(([id, entry]) => ({ id, ...entry }));
-      console.log("Fetched fineTuneMetrics:", metricsArray);
-      // Sort metrics by epoch number.
-      metricsArray.sort((a, b) => a.epoch - b.epoch);
+      const metricsArray = Object.entries(data)
+        .map(([id, entry]) => ({ id, ...entry }))
+        .sort((a, b) => a.epoch - b.epoch);
       setMetrics(metricsArray);
+      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   if (metrics.length === 0) {
     return (
-      <Container sx={{ py: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Fine-Tuning Progress
-        </Typography>
-        <Paper sx={{ p: 2 }}>
-          <Typography variant="body1" align="center">
-            No training metrics found. Please run a fine-tuning session to see progress.
+      <Container maxWidth="md" sx={{ py: 3 }}>
+        <Typography variant="h4" gutterBottom>Fine-Tuning Progress</Typography>
+        <Paper sx={{ p: 4, textAlign: 'center' }}>
+          <Typography color="text.secondary">
+            No training metrics found. Run a fine-tuning session to see progress here.
           </Typography>
         </Paper>
       </Container>
@@ -49,41 +56,49 @@ export default function FineTuneMetrics() {
   }
 
   const chartData = {
-    labels: metrics.map(entry => `Epoch ${entry.epoch}`),
+    labels: metrics.map((entry) => `Epoch ${entry.epoch}`),
     datasets: [
       {
         label: 'Loss',
-        data: metrics.map(entry => entry.loss),
-        borderColor: 'rgba(255,99,132,1)',
-        backgroundColor: 'rgba(255,99,132,0.2)',
+        data: metrics.map((entry) => entry.loss),
+        borderColor: '#D32F2F',
+        backgroundColor: 'rgba(211, 47, 47, 0.1)',
         fill: false,
-        tension: 0.1,
+        tension: 0.3,
       },
       {
         label: 'Accuracy',
-        data: metrics.map(entry => entry.accuracy),
-        borderColor: 'rgba(75,192,192,1)',
-        backgroundColor: 'rgba(75,192,192,0.2)',
+        data: metrics.map((entry) => entry.accuracy),
+        borderColor: '#2E7D32',
+        backgroundColor: 'rgba(46, 125, 50, 0.1)',
         fill: false,
-        tension: 0.1,
-      }
-    ]
+        tension: 0.3,
+      },
+    ],
   };
 
   return (
-    <Container sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Fine-Tuning Progress
-      </Typography>
-      <Paper sx={{ p: 2 }}>
+    <Container maxWidth="lg" sx={{ py: 3 }}>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4">Fine-Tuning Progress</Typography>
+        <Typography variant="body2" color="text.secondary">
+          {metrics.length} epoch{metrics.length !== 1 ? 's' : ''} recorded
+        </Typography>
+      </Box>
+      <Paper sx={{ p: 2.5 }}>
         <Line
           data={chartData}
           options={{
             responsive: true,
+            maintainAspectRatio: true,
             plugins: {
-              legend: { position: 'top' },
-              title: { display: true, text: 'Model Fine-Tuning Metrics' }
-            }
+              legend: { position: 'top', labels: { usePointStyle: true } },
+              title: { display: false },
+            },
+            scales: {
+              y: { beginAtZero: true },
+              x: { grid: { display: false } },
+            },
           }}
         />
       </Paper>

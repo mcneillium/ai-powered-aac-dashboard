@@ -169,13 +169,6 @@ export default function AdminDashboard() {
     [logs, startDate, endDate, actionFilter, userFilter],
   );
 
-  // Unique actions for charts
-  const uniqueActions = useMemo(() => {
-    const set = new Set();
-    filteredLogs.forEach((l) => { if (l.action) set.add(l.action); });
-    return Array.from(set);
-  }, [filteredLogs]);
-
   const lineData = useMemo(() => {
     const counts = {};
     filteredLogs.forEach((l) => {

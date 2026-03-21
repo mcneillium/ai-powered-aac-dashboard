@@ -1,8 +1,11 @@
 # Dashboard Audit Report
 
-**Date:** 2026-03-21
-**Auditor:** Dashboard Architecture & UX Lead
+**Date:** 2026-03-21 (updated: 2026-03-21)
+**Auditor:** Dashboard Architecture & UX Lead + Security Hardening Lead
 **Scope:** Full codebase review of ai-powered-aac-dashboard
+
+> **See also:** `/docs/audit/final-dashboard-audit.md` for the post-hardening security audit.
+> **See also:** `/docs/security/post-rotation-verification.md` for credential rotation checklist.
 
 ---
 
