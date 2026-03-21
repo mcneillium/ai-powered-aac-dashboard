@@ -12,12 +12,18 @@ import {
   TableBody,
   TableRow,
   TableCell,
+  TableContainer,
   Select,
   MenuItem,
+  FormControl,
+  InputLabel,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Chip,
+  TablePagination,
+  Alert,
 } from '@mui/material';
 import { ref, onValue, push, update } from 'firebase/database';
 import { db } from '../firebaseConfig';
@@ -25,58 +31,45 @@ import Papa from 'papaparse';
 import { toast } from 'react-hot-toast';
 import SetPasswordForm from './SetPasswordForm';
 import { useNavigate } from 'react-router-dom';
+import SearchIcon from '@mui/icons-material/Search';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
 
 export default function UserManagement() {
-  // State for users and caregivers
   const [users, setUsers] = useState([]);
   const [caregivers, setCaregivers] = useState([]);
-  
-  // For caregiver assignment dropdown per user
   const [selectedCaregiverForUser, setSelectedCaregiverForUser] = useState({});
-  
-  // States for manually adding a new user
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserCaregiverId, setNewUserCaregiverId] = useState('');
-  
-  // CSV upload state
   const [csvFile, setCsvFile] = useState(null);
-  
-  // Search field state
   const [searchTerm, setSearchTerm] = useState('');
-
-  // State for password modal
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [selectedUserForPassword, setSelectedUserForPassword] = useState(null);
-
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(15);
   const navigate = useNavigate();
 
-  // Fetch users from the "users" node
   useEffect(() => {
-    const usersRef = ref(db, 'users/');
-    const unsubscribe = onValue(usersRef, (snapshot) => {
-      const data = snapshot.val() || {};
-      const list = Object.entries(data).map(([id, val]) => ({ id, ...val }));
-      setUsers(list);
+    const unsubUsers = onValue(ref(db, 'users/'), (snap) => {
+      const data = snap.val() || {};
+      setUsers(Object.entries(data).map(([id, val]) => ({ id, ...val })));
     });
-    return () => unsubscribe();
+    const unsubCaregivers = onValue(ref(db, 'caregivers/'), (snap) => {
+      const data = snap.val() || {};
+      setCaregivers(Object.entries(data).map(([id, val]) => ({ id, ...val })));
+    });
+    return () => { unsubUsers(); unsubCaregivers(); };
   }, []);
 
-  // Fetch caregivers from the "caregivers" node
-  useEffect(() => {
-    const caregiversRef = ref(db, 'caregivers/');
-    const unsubscribe = onValue(caregiversRef, (snapshot) => {
-      const data = snapshot.val() || {};
-      const list = Object.entries(data).map(([id, val]) => ({ id, ...val }));
-      setCaregivers(list);
-    });
-    return () => unsubscribe();
-  }, []);
+  // Build caregiver lookup
+  const caregiverMap = {};
+  caregivers.forEach((c) => { caregiverMap[c.id] = c.name || c.email; });
 
-  // Handler to manually add a new user (caregiverId is optional)
   const handleAddUser = async () => {
     if (!newUserName.trim() || !newUserEmail.trim()) {
-      toast.error('Please provide a name and an email.');
+      toast.error('Please provide a name and email.');
       return;
     }
     if (!/^\S+@\S+\.\S+$/.test(newUserEmail)) {
@@ -85,245 +78,245 @@ export default function UserManagement() {
     }
     try {
       await push(ref(db, 'users/'), {
-        name: newUserName,
-        email: newUserEmail,
-        caregiverId: newUserCaregiverId ? newUserCaregiverId : null
+        name: newUserName.trim(),
+        email: newUserEmail.trim().toLowerCase(),
+        caregiverId: newUserCaregiverId || null,
+        createdAt: Date.now(),
       });
-      toast.success('User added successfully!');
+      toast.success('User added.');
       setNewUserName('');
       setNewUserEmail('');
       setNewUserCaregiverId('');
-    } catch (error) {
-      console.error('Error adding user:', error);
+      setShowAddForm(false);
+    } catch (err) {
       toast.error('Error adding user.');
     }
   };
 
-  // CSV upload handler: expects CSV with headers: name, email, and optionally caregiverId
   const handleCSVUpload = () => {
-    if (!csvFile) {
-      toast.error('Please select a CSV file.');
-      return;
-    }
+    if (!csvFile) { toast.error('Select a CSV file first.'); return; }
     Papa.parse(csvFile, {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
-        const data = results.data;
-        for (const [index, row] of data.entries()) {
+        let added = 0;
+        for (const row of results.data) {
           if (row.name && row.email) {
             try {
               await push(ref(db, 'users/'), {
-                name: row.name,
-                email: row.email,
-                caregiverId: row.caregiverId ? row.caregiverId : null
+                name: row.name.trim(),
+                email: row.email.trim().toLowerCase(),
+                caregiverId: row.caregiverId || null,
+                createdAt: Date.now(),
               });
-            } catch (error) {
-              console.error(`Error adding user from CSV at row ${index + 1}:`, error);
-              toast.error(`Error adding CSV row ${index + 1}.`);
-            }
-          } else {
-            toast.error(`Invalid row data at row ${index + 1}: ${JSON.stringify(row)}`);
+              added++;
+            } catch { /* skip failed rows */ }
           }
         }
-        toast.success('CSV upload complete.');
+        toast.success(`${added} user(s) imported.`);
         setCsvFile(null);
       },
-      error: (error) => {
-        console.error('CSV parse error:', error);
-        toast.error('Error parsing CSV.');
-      }
+      error: () => toast.error('Error parsing CSV.'),
     });
   };
 
-  // Dummy users for testing
-  const addDummyUsers = async () => {
-    const dummyUsers = [
-      { name: 'Alice', email: 'alice@example.com', caregiverId: 'carer123' },
-      { name: 'Bob', email: 'bob@example.com', caregiverId: 'carer123' },
-      { name: 'Charlie', email: 'charlie@example.com', caregiverId: 'carer456' }
-    ];
-    try {
-      for (const user of dummyUsers) {
-        await push(ref(db, 'users/'), user);
-      }
-      toast.success('Dummy users added.');
-    } catch (error) {
-      console.error('Error adding dummy users:', error);
-      toast.error('Error adding dummy users.');
-    }
-  };
-
-  // Assign caregiver from the dropdown for a user
   const handleAssignCaregiverToUser = async (userId, caregiverId) => {
     try {
       await update(ref(db, `users/${userId}`), { caregiverId });
-      toast.success('Caregiver assigned successfully!');
-      setSelectedCaregiverForUser(prev => ({ ...prev, [userId]: '' }));
-    } catch (error) {
-      console.error('Error assigning caregiver:', error);
+      toast.success('Caregiver assigned.');
+      setSelectedCaregiverForUser((prev) => ({ ...prev, [userId]: '' }));
+    } catch {
       toast.error('Error assigning caregiver.');
     }
   };
 
-  // Filter users based on search term, defaulting missing values to empty strings
   const filteredUsers = users.filter((user) => {
-    const userName = user.name || "";
-    const userEmail = user.email || "";
     const search = searchTerm.toLowerCase();
-    return userName.toLowerCase().includes(search) || userEmail.toLowerCase().includes(search);
+    return (user.name || '').toLowerCase().includes(search)
+      || (user.email || '').toLowerCase().includes(search);
   });
 
-  return (
-    <Container sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        User Management
-      </Typography>
+  const paginatedUsers = filteredUsers.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
-      {/* Manual Add New User Section */}
-      <Box component={Paper} sx={{ p: 2, mb: 4 }}>
-        <Typography variant="h6">Add New User</Typography>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 2 }}>
-          <TextField
-            label="Name"
-            variant="outlined"
+  return (
+    <Container maxWidth="xl" sx={{ py: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h4">User Management</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {users.length} total users, {users.filter((u) => !u.caregiverId).length} unassigned
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="contained"
+            startIcon={<PersonAddIcon />}
+            onClick={() => setShowAddForm(!showAddForm)}
             size="small"
-            value={newUserName}
-            onChange={(e) => setNewUserName(e.target.value)}
-          />
-          <TextField
-            label="Email"
-            variant="outlined"
-            size="small"
-            value={newUserEmail}
-            onChange={(e) => setNewUserEmail(e.target.value)}
-          />
-          <TextField
-            label="Caregiver ID (optional)"
-            variant="outlined"
-            size="small"
-            value={newUserCaregiverId}
-            onChange={(e) => setNewUserCaregiverId(e.target.value)}
-          />
-          <Button variant="contained" size="small" onClick={handleAddUser}>
+          >
             Add User
           </Button>
         </Box>
       </Box>
 
-      {/* CSV Upload Section */}
-      <Box component={Paper} sx={{ p: 2, mb: 4 }}>
-        <Typography variant="h6">CSV Upload</Typography>
-        <Box sx={{ mt: 2 }}>
-          <input
-            type="file"
-            accept=".csv"
-            onChange={(e) => setCsvFile(e.target.files[0])}
-            style={{ marginBottom: 16 }}
-          />
-          <Button variant="outlined" onClick={handleCSVUpload}>
-            Upload CSV
-          </Button>
-        </Box>
-      </Box>
+      {/* Add User Form */}
+      {showAddForm && (
+        <Paper sx={{ p: 2.5, mb: 3 }}>
+          <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+            Add New User
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <TextField
+              label="Name"
+              size="small"
+              value={newUserName}
+              onChange={(e) => setNewUserName(e.target.value)}
+              sx={{ minWidth: 180 }}
+            />
+            <TextField
+              label="Email"
+              size="small"
+              value={newUserEmail}
+              onChange={(e) => setNewUserEmail(e.target.value)}
+              sx={{ minWidth: 220 }}
+            />
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>Caregiver (optional)</InputLabel>
+              <Select
+                value={newUserCaregiverId}
+                label="Caregiver (optional)"
+                onChange={(e) => setNewUserCaregiverId(e.target.value)}
+              >
+                <MenuItem value="">None</MenuItem>
+                {caregivers.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>{c.name} ({c.email})</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Button variant="contained" size="small" onClick={handleAddUser}>Add</Button>
+            <Button variant="outlined" size="small" onClick={() => setShowAddForm(false)}>Cancel</Button>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+            <UploadFileIcon color="action" />
+            <input
+              type="file"
+              accept=".csv"
+              onChange={(e) => setCsvFile(e.target.files[0])}
+              style={{ fontSize: 14 }}
+            />
+            <Button variant="outlined" size="small" onClick={handleCSVUpload} disabled={!csvFile}>
+              Import CSV
+            </Button>
+          </Box>
+        </Paper>
+      )}
 
-      {/* Dummy Users Button */}
-      <Box sx={{ mb: 4 }}>
-        <Button variant="outlined" onClick={addDummyUsers}>
-          Add Dummy Users
-        </Button>
-      </Box>
+      {/* Search */}
+      <TextField
+        placeholder="Search by name or email..."
+        size="small"
+        fullWidth
+        value={searchTerm}
+        onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }}
+        sx={{ mb: 2 }}
+        InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} /> }}
+      />
 
-      {/* Search Field */}
-      <Box sx={{ mb: 2 }}>
-        <TextField
-          label="Search by name or email"
-          variant="outlined"
-          size="small"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          fullWidth
-        />
-      </Box>
-
-      {/* Users Table with Caregiver Assignment Dropdown, Set Password Button, and View Actions */}
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          User List
-        </Typography>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Assigned Caregiver</TableCell>
-              <TableCell>Assign Caregiver</TableCell>
-              <TableCell>Set Password</TableCell>
-              <TableCell>View Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredUsers.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell>{user.id}</TableCell>
-                <TableCell>{user.name}</TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>{user.caregiverId || 'None'}</TableCell>
-                <TableCell>
-                  <Select
-                    value={selectedCaregiverForUser[user.id] || ''}
-                    onChange={(e) => {
-                      const selected = e.target.value;
-                      setSelectedCaregiverForUser(prev => ({ ...prev, [user.id]: selected }));
-                      handleAssignCaregiverToUser(user.id, selected);
-                    }}
-                    displayEmpty
-                    size="small"
-                  >
-                    <MenuItem value="">-- Select Caregiver --</MenuItem>
-                    {caregivers.map((cg) => (
-                      <MenuItem key={cg.id} value={cg.id}>
-                        {cg.name} ({cg.email})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={() => {
-                      setSelectedUserForPassword(user.id);
-                      setPasswordModalOpen(true);
-                    }}
-                  >
-                    Set Password
-                  </Button>
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => navigate(`/user-actions/${user.id}`)}
-                  >
-                    View Actions
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-            {filteredUsers.length === 0 && (
+      {/* Users Table */}
+      <Paper>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={7}>No users found.</TableCell>
+                <TableCell>Name</TableCell>
+                <TableCell>Email</TableCell>
+                <TableCell>Caregiver</TableCell>
+                <TableCell>Assign Caregiver</TableCell>
+                <TableCell align="right">Actions</TableCell>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHead>
+            <TableBody>
+              {paginatedUsers.map((user) => (
+                <TableRow key={user.id} hover>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight={500}>{user.name || '-'}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">{user.email || '-'}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    {user.caregiverId ? (
+                      <Chip label={caregiverMap[user.caregiverId] || user.caregiverId} size="small" />
+                    ) : (
+                      <Chip label="Unassigned" size="small" variant="outlined" color="warning" />
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <FormControl size="small" sx={{ minWidth: 160 }}>
+                      <Select
+                        value={selectedCaregiverForUser[user.id] || ''}
+                        onChange={(e) => {
+                          const selected = e.target.value;
+                          setSelectedCaregiverForUser((prev) => ({ ...prev, [user.id]: selected }));
+                          handleAssignCaregiverToUser(user.id, selected);
+                        }}
+                        displayEmpty
+                      >
+                        <MenuItem value="">Select...</MenuItem>
+                        {caregivers.map((cg) => (
+                          <MenuItem key={cg.id} value={cg.id}>
+                            {cg.name} ({cg.email})
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          setSelectedUserForPassword(user.id);
+                          setPasswordModalOpen(true);
+                        }}
+                      >
+                        Set Password
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => navigate(`/user-actions/${user.id}`)}
+                      >
+                        Actions
+                      </Button>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredUsers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                    <Typography color="text.secondary">No users found.</Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        <TablePagination
+          component="div"
+          count={filteredUsers.length}
+          page={page}
+          onPageChange={(_, p) => setPage(p)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+          rowsPerPageOptions={[15, 30, 50]}
+        />
       </Paper>
 
-      {/* Set Password Modal */}
-      <Dialog open={passwordModalOpen} onClose={() => setPasswordModalOpen(false)}>
-        <DialogTitle>Set Password for User {selectedUserForPassword}</DialogTitle>
+      {/* Password Modal */}
+      <Dialog open={passwordModalOpen} onClose={() => setPasswordModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Set Password</DialogTitle>
         <DialogContent>
           <SetPasswordForm
             prefilledUid={selectedUserForPassword}

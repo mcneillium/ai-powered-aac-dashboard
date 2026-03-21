@@ -4,29 +4,42 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Box, CircularProgress } from '@mui/material';
 
-export default function PrivateRoute({ children }) {
-  const { currentUser, loading } = useAuth();
+const LoadingSpinner = () => (
+  <Box
+    sx={{
+      height: '100vh',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+    }}
+  >
+    <CircularProgress />
+  </Box>
+);
+
+/**
+ * PrivateRoute - requires authentication.
+ * Optional `requiredRole` prop to restrict by role.
+ */
+export default function PrivateRoute({ children, requiredRole }) {
+  const { currentUser, userRole, loading } = useAuth();
 
   if (loading) {
-    // still initializing auth → show spinner
-    return (
-      <Box
-        sx={{
-          height: '100vh',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}
-      >
-        <CircularProgress />
-      </Box>
-    );
+    return <LoadingSpinner />;
   }
 
-  return currentUser ? (
-    children
-  ) : (
-    // not logged in → redirect to login
-    <Navigate to="/login" replace />
-  );
+  if (!currentUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // If a specific role is required, check it
+  if (requiredRole && userRole !== requiredRole) {
+    // Redirect non-admins trying to access admin pages to their dashboard
+    if (userRole === 'caregiver') {
+      return <Navigate to="/caregiver" replace />;
+    }
+    return <Navigate to="/home" replace />;
+  }
+
+  return children;
 }

@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { ref, onValue, update } from 'firebase/database';
 import { db } from '../firebaseConfig';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Container,
   Typography,
@@ -15,20 +16,19 @@ import {
   TableBody,
   Paper,
   TextField,
+  Alert,
 } from '@mui/material';
-import { getAuth } from 'firebase/auth';
 import { toast } from 'react-hot-toast';
+import SearchIcon from '@mui/icons-material/Search';
+import LinkIcon from '@mui/icons-material/Link';
 
 export default function ConnectUser() {
+  const { currentUser } = useAuth();
   const [unassignedUsers, setUnassignedUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const auth = getAuth();
-  const currentUser = auth.currentUser; // Assumes the caregiver is logged in
 
-  // Fetch users without a caregiverId (i.e. unassigned)
   useEffect(() => {
-    const usersRef = ref(db, 'users/');
-    const unsubscribe = onValue(usersRef, (snapshot) => {
+    const unsubscribe = onValue(ref(db, 'users/'), (snapshot) => {
       const data = snapshot.val() || {};
       const list = Object.entries(data)
         .map(([id, val]) => ({ id, ...val }))
@@ -38,76 +38,79 @@ export default function ConnectUser() {
     return () => unsubscribe();
   }, []);
 
-  // Function for connecting the current caregiver to a user
   const connectUser = async (userId) => {
     if (!currentUser) {
-      toast.error('You must be logged in to connect to a user.');
+      toast.error('You must be logged in.');
       return;
     }
     try {
-      // Update the user's record by setting caregiverId to the current user's uid
       await update(ref(db, `users/${userId}`), { caregiverId: currentUser.uid });
-      toast.success('User connected successfully!');
-    } catch (error) {
-      console.error('Error connecting user:', error);
+      toast.success('User connected.');
+    } catch {
       toast.error('Error connecting user.');
     }
   };
 
-  // Filter unassigned users by search term
-  const filteredUsers = unassignedUsers.filter((user) =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredUsers = unassignedUsers.filter((user) => {
+    const s = searchTerm.toLowerCase();
+    return (user.name || '').toLowerCase().includes(s)
+      || (user.email || '').toLowerCase().includes(s);
+  });
 
   return (
-    <Container sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Connect to a User
-      </Typography>
-      <Box sx={{ mb: 2 }}>
-        <TextField
-          label="Search Unassigned Users"
-          variant="outlined"
-          size="small"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          fullWidth
-        />
+    <Container maxWidth="md" sx={{ py: 3 }}>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4">Connect to Users</Typography>
+        <Typography variant="body2" color="text.secondary">
+          Assign unlinked users to yourself
+        </Typography>
       </Box>
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow sx={{ backgroundColor: '#f2f2f2' }}>
-              <TableCell>Name</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Action</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredUsers.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell>{user.name}</TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={() => connectUser(user.id)}
-                  >
-                    Connect
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-            {filteredUsers.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={3}>No unassigned users found.</TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+
+      <TextField
+        placeholder="Search users..."
+        size="small"
+        fullWidth
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        sx={{ mb: 2 }}
+        InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} /> }}
+      />
+
+      {filteredUsers.length === 0 ? (
+        <Alert severity="info">No unassigned users available.</Alert>
+      ) : (
+        <Paper>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell align="right">Action</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredUsers.map((user) => (
+                  <TableRow key={user.id} hover>
+                    <TableCell>{user.name || '-'}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell align="right">
+                      <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={<LinkIcon />}
+                        onClick={() => connectUser(user.id)}
+                      >
+                        Connect
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
     </Container>
   );
 }

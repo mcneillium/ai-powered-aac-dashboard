@@ -1,7 +1,10 @@
 // src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider, CssBaseline } from '@mui/material';
+import theme from './theme';
 import PrivateRoute from './PrivateRoute';
+import DashboardLayout from './components/layout/DashboardLayout';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Home from './pages/Home';
@@ -15,91 +18,105 @@ import UserManagement from './pages/UserManagement';
 import UserActions from './pages/UserActions';
 import { AuthProvider } from './contexts/AuthContext';
 
+function ProtectedLayout({ children, requiredRole }) {
+  return (
+    <PrivateRoute requiredRole={requiredRole}>
+      <DashboardLayout>
+        {children}
+      </DashboardLayout>
+    </PrivateRoute>
+  );
+}
+
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          {/* Public */}
-          <Route path="/" element={<Login />} />
-          <Route path="/login"  element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/home"   element={<Home />} />
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <AuthProvider>
+        <Router>
+          <Routes>
+            {/* Public */}
+            <Route path="/" element={<Login />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/home" element={<Home />} />
 
-          {/* Protected */}
-          <Route
-            path="/admin"
-            element={
-              <PrivateRoute>
-                <AdminDashboard />
-              </PrivateRoute>
-            }
-          />
+            {/* Admin-only routes */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedLayout requiredRole="admin">
+                  <AdminDashboard />
+                </ProtectedLayout>
+              }
+            />
+            <Route
+              path="/user-management"
+              element={
+                <ProtectedLayout requiredRole="admin">
+                  <UserManagement />
+                </ProtectedLayout>
+              }
+            />
+            <Route
+              path="/caregivers"
+              element={
+                <ProtectedLayout requiredRole="admin">
+                  <Caregivers />
+                </ProtectedLayout>
+              }
+            />
+            <Route
+              path="/user-actions/:userId"
+              element={
+                <ProtectedLayout requiredRole="admin">
+                  <UserActions />
+                </ProtectedLayout>
+              }
+            />
 
-          {/* Caregiver dashboard route */}
-          <Route
-            path="/caregiver"
-            element={
-              <PrivateRoute>
-                <CaregiverDashboard />
-              </PrivateRoute>
-            }
-          />
+            {/* Caregiver routes (accessible by both caregivers and admins) */}
+            <Route
+              path="/caregiver"
+              element={
+                <ProtectedLayout>
+                  <CaregiverDashboard />
+                </ProtectedLayout>
+              }
+            />
+            <Route
+              path="/connect-user"
+              element={
+                <ProtectedLayout>
+                  <ConnectUser />
+                </ProtectedLayout>
+              }
+            />
 
-          <Route
-            path="/caregivers"
-            element={
-              <PrivateRoute>
-                <Caregivers />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/connect-user"
-            element={
-              <PrivateRoute>
-                <ConnectUser />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/finetune-metrics"
-            element={
-              <PrivateRoute>
-                <FineTuneMetrics />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/logs"
-            element={
-              <PrivateRoute>
-                <Logs />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/user-management"
-            element={
-              <PrivateRoute>
-                <UserManagement />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/user-actions/:userId"
-            element={
-              <PrivateRoute>
-                <UserActions />
-              </PrivateRoute>
-            }
-          />
+            {/* Shared routes */}
+            <Route
+              path="/finetune-metrics"
+              element={
+                <ProtectedLayout>
+                  <FineTuneMetrics />
+                </ProtectedLayout>
+              }
+            />
+            <Route
+              path="/logs"
+              element={
+                <ProtectedLayout>
+                  <Logs />
+                </ProtectedLayout>
+              }
+            />
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
-    </AuthProvider>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

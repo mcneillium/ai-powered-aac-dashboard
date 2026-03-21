@@ -1,56 +1,83 @@
 // src/contexts/AuthContext.js
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
 import { ref, get } from 'firebase/database';
 
 const AuthContext = createContext();
 
+const ROLES = {
+  ADMIN: 'admin',
+  CAREGIVER: 'caregiver',
+};
+
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [isAdmin, setIsAdmin]         = useState(false);
-  const [loading, setLoading]         = useState(true);
+  const [userRole, setUserRole] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const isAdmin = userRole === ROLES.ADMIN;
+  const isCaregiver = userRole === ROLES.CAREGIVER;
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async user => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // ALWAYS set the Firebase user object
         setCurrentUser(user);
 
-        // THEN fetch their role from your database:
+        // Try custom claims first (more secure), fall back to database
         try {
-          const snap = await get(ref(db, `users/${user.uid}/role`));
-          const role = snap.val();
-          setIsAdmin(role === 'admin');
+          const tokenResult = await user.getIdTokenResult();
+          const claimRole = tokenResult.claims.role;
+          if (claimRole) {
+            setUserRole(claimRole);
+          } else {
+            // Fallback to database role
+            const snap = await get(ref(db, `users/${user.uid}/role`));
+            setUserRole(snap.val() || null);
+          }
         } catch (err) {
           console.error('Failed to fetch role:', err);
-          setIsAdmin(false);
+          setUserRole(null);
         }
       } else {
         setCurrentUser(null);
-        setIsAdmin(false);
+        setUserRole(null);
       }
-
-      // Now that we've done both steps, loading is done
       setLoading(false);
     });
 
     return unsubscribe;
   }, []);
 
-  const signIn = (email, pwd) =>
-    signInWithEmailAndPassword(auth, email, pwd);
+  const signIn = useCallback((email, pwd) =>
+    signInWithEmailAndPassword(auth, email, pwd), []);
 
-  const signOut = () =>
-    fbSignOut(auth);
+  const signOut = useCallback(() => fbSignOut(auth), []);
+
+  const value = {
+    currentUser,
+    userRole,
+    isAdmin,
+    isCaregiver,
+    loading,
+    signIn,
+    signOut,
+    ROLES,
+  };
 
   return (
-    <AuthContext.Provider value={{ currentUser, isAdmin, loading, signIn, signOut }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 }
+
+export { ROLES };
