@@ -1,82 +1,93 @@
-// Firebase Realtime Database Security Rules
-// Deploy via: firebase deploy --only database
-// Or paste into Firebase Console > Realtime Database > Rules
 {
   "rules": {
-    // Users node
     "users": {
       ".read": "auth != null",
       "$uid": {
-        // Any authenticated user can read individual user profiles
         ".read": "auth != null",
-        // Only admins can write user data; users cannot self-modify role
-        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || auth.token.role === 'admin')",
+        ".write": "auth != null && auth.token.role === 'admin'",
         "role": {
-          // Role can ONLY be set by admin custom claim (never client-writable)
-          ".write": "auth != null && auth.token.role === 'admin'",
           ".validate": "newData.isString() && (newData.val() === 'admin' || newData.val() === 'caregiver')"
         },
         "caregiverId": {
-          // Admins and the caregiver themselves can assign
           ".write": "auth != null && (auth.token.role === 'admin' || auth.uid === newData.val())",
           ".validate": "newData.isString() || newData.val() === null"
         },
-        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
-        "email": { ".validate": "newData.isString() && newData.val().matches(/^[^@]+@[^@]+$/)" },
-        "createdAt": { ".validate": "newData.isNumber()" }
+        "name": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200"
+        },
+        "email": {
+          ".validate": "newData.isString() && newData.val().matches(/^[^@]+@[^@]+$/)"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber()"
+        }
       }
     },
 
-    // Caregivers node
     "caregivers": {
       ".read": "auth != null",
       "$caregiverId": {
         ".read": "auth != null",
-        // Only admins can create/modify/delete caregivers
-        ".write": "auth != null && (auth.token.role === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'admin')",
-        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
-        "email": { ".validate": "newData.isString() && newData.val().matches(/^[^@]+@[^@]+$/)" }
+        ".write": "auth != null && auth.token.role === 'admin'",
+        "name": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200"
+        },
+        "email": {
+          ".validate": "newData.isString() && newData.val().matches(/^[^@]+@[^@]+$/)"
+        }
       }
     },
 
-    // Activity logs
     "userLogs": {
       ".read": "auth != null",
       ".write": "auth != null",
       "$logId": {
         ".validate": "newData.hasChildren(['action', 'timestamp'])",
-        "action": { ".validate": "newData.isString() && newData.val().length <= 500" },
-        "timestamp": { ".validate": "newData.isNumber()" },
-        "targetUserId": { ".validate": "newData.isString()" },
-        "carerId": { ".validate": "newData.isString()" },
-        "userId": { ".validate": "newData.isString()" }
+        "action": {
+          ".validate": "newData.isString() && newData.val().length <= 500"
+        },
+        "timestamp": {
+          ".validate": "newData.isNumber()"
+        },
+        "targetUserId": {
+          ".validate": "newData.isString()"
+        },
+        "carerId": {
+          ".validate": "newData.isString()"
+        },
+        "userId": {
+          ".validate": "newData.isString()"
+        }
       }
     },
 
-    // User sync status (written by mobile app)
     "userSync": {
       "$userId": {
         ".read": "auth != null",
-        // The user themselves or an admin can write sync data
         ".write": "auth != null && (auth.uid === $userId || auth.token.role === 'admin')",
-        "lastActivity": { ".validate": "newData.isNumber()" }
+        "lastActivity": {
+          ".validate": "newData.isNumber()"
+        }
       }
     },
 
-    // Fine-tune metrics (written by backend/training pipeline)
     "fineTuneMetrics": {
       ".read": "auth != null",
-      // Only admins can write training metrics
       ".write": "auth != null && auth.token.role === 'admin'",
       "$metricId": {
         ".validate": "newData.hasChildren(['epoch'])",
-        "epoch": { ".validate": "newData.isNumber()" },
-        "loss": { ".validate": "newData.isNumber()" },
-        "accuracy": { ".validate": "newData.isNumber()" }
+        "epoch": {
+          ".validate": "newData.isNumber()"
+        },
+        "loss": {
+          ".validate": "newData.isNumber()"
+        },
+        "accuracy": {
+          ".validate": "newData.isNumber()"
+        }
       }
     },
 
-    // Deny all other paths by default
     "$other": {
       ".read": false,
       ".write": false

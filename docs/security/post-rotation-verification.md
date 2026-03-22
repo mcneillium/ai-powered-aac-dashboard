@@ -1,104 +1,130 @@
 # Post-Rotation Verification Checklist
 
-**Project:** CommAI Dashboard (commai-b98fe)
-**Date:** 2026-03-21
-**Status:** ACTION REQUIRED - Keys must be rotated manually in Firebase Console
+**Project:** CommAI Dashboard
+**Created:** 2026-03-21
+**Last Updated:** 2026-03-21
+**Status:** BLOCKED ON MANUAL CONSOLE ACTION — see steps below
 
 ---
 
 ## Compromised Credentials Identified
 
 ### 1. Service Account Key (Primary)
-- **Email:** `firebase-adminsdk-fbsvc@commai-b98fe.iam.gserviceaccount.com`
-- **Private Key ID:** `1136dd44b0ed66a2554796eaea541bcc6ecd6e28`
-- **Exposed in:** `credentials/serviceAccountKey.json`
-- **Git commits:** First committed in `d1e2aaf` (2025-03-01), removed in `7f9e813` (2026-03-21)
-- **Exposure duration:** ~12 months in git history
-- **Status:** [ ] PENDING ROTATION
+- **Service account:** `firebase-adminsdk-fbsvc@<PROJECT_ID>.iam.gserviceaccount.com`
+- **Private Key ID (truncated):** `1136dd44...`
+- **Originally in:** `credentials/serviceAccountKey.json`
+- **Git history:** First committed `d1e2aaf` (2025-03-01), removed `7f9e813` (2026-03-21)
+- **Exposure window:** ~12 months
+- **Files on disk:** DELETED (2026-03-21)
+- **Git tracking:** Removed via `git rm --cached` and `.gitignore`
+- **Rotation status:** [ ] PENDING — requires manual action in Firebase Console
 
 ### 2. Service Account Key (Admin Settings)
-- **Email:** `firebase-adminsdk-fbsvc@commai-b98fe.iam.gserviceaccount.com`
-- **Private Key ID:** `f0aff750c48a884305d7b05363c449e05b675e5d`
-- **Exposed in:** `credentials/AdminSetting/serviceAccountKey.json`
-- **Git commits:** First committed in `8f9aa1e` (2025-07-08), removed in `7f9e813` (2026-03-21)
-- **Exposure duration:** ~8 months in git history
-- **Status:** [ ] PENDING ROTATION
+- **Service account:** Same as above
+- **Private Key ID (truncated):** `f0aff750...`
+- **Originally in:** `credentials/AdminSetting/serviceAccountKey.json`
+- **Git history:** First committed `8f9aa1e` (2025-07-08), removed `7f9e813` (2026-03-21)
+- **Exposure window:** ~8 months
+- **Files on disk:** DELETED (2026-03-21)
+- **Git tracking:** Removed via `git rm --cached` and `.gitignore`
+- **Rotation status:** [ ] PENDING — requires manual action in Firebase Console
 
 ### 3. Firebase Client API Key
-- **Key:** `AIzaSyBZS_Bfl7Bj4axlFt8Pg3HebYzAbrqBDQs`
-- **Exposed in:** Previously hardcoded in `src/firebaseConfig.js`, now in `.env.local`
-- **Note:** Firebase client API keys are designed to be public, but should still be restricted via Google Cloud Console
-- **Status:** [ ] PENDING RESTRICTION
+- **Key pattern:** `AIzaSyBZS_...` (not printed in full — treat as semi-public)
+- **Current location:** `.env.local` only (git-ignored)
+- **Source code:** NOT hardcoded — `firebaseConfig.js` reads from `process.env`
+- **Note:** Firebase client API keys are designed to be exposed in client apps. Security comes from domain restrictions + Firebase security rules, not key secrecy.
+- **Restriction status:** [ ] PENDING — apply HTTP referrer restrictions in GCP Console
 
 ---
 
-## Required Rotation Steps
+## Code-Level Closure Status
+
+| Action | Status | Date |
+|--------|--------|------|
+| API key removed from source code | DONE | 2026-03-21 |
+| Service account files removed from git tracking | DONE | 2026-03-21 |
+| Service account files deleted from disk | DONE | 2026-03-21 |
+| `.gitignore` blocks credentials patterns | DONE | 2026-03-21 |
+| `firebaseConfig.js` uses env vars only | DONE | 2026-03-21 |
+| Cloud Functions use default GCP auth (no key file) | DONE | 2026-03-21 |
+| AuthContext uses custom claims only (no DB fallback) | DONE | 2026-03-21 |
+| Database security rules created and configured | DONE | 2026-03-21 |
+| Full API key redacted from all documentation | DONE | 2026-03-21 |
+| Private key IDs truncated in documentation | DONE | 2026-03-21 |
+
+---
+
+## Required Manual Actions (Firebase Console)
 
 ### Step 1: Rotate Service Account Keys
 
-1. Go to [Firebase Console](https://console.firebase.google.com/project/commai-b98fe/settings/serviceaccounts/adminsdk)
-2. Click "Generate new private key" to create a replacement
-3. Store the new key securely (never in the repo)
-4. Go to [Google Cloud IAM](https://console.cloud.google.com/iam-admin/serviceaccounts?project=commai-b98fe)
-5. Find the `firebase-adminsdk-fbsvc@commai-b98fe.iam.gserviceaccount.com` service account
-6. Under "Keys" tab, **delete** the two compromised keys:
-   - Key ID: `1136dd44...`
-   - Key ID: `f0aff750...`
-7. Verify deletion by attempting to use the old keys
+1. Open Firebase Console → Project Settings → Service Accounts
+2. Click **Generate new private key** to create a replacement
+3. Store the new key securely OUTSIDE the repository
+4. Open Google Cloud Console → IAM → Service Accounts
+5. Find the `firebase-adminsdk-fbsvc` service account
+6. Under the **Keys** tab, **delete** both compromised keys:
+   - Key ID starting `1136dd44...`
+   - Key ID starting `f0aff750...`
+7. Confirm deletion — old keys must return auth errors
 
-### Step 2: Restrict API Key
+### Step 2: Restrict Client API Key
 
-1. Go to [Google Cloud Console > APIs & Services > Credentials](https://console.cloud.google.com/apis/credentials?project=commai-b98fe)
-2. Find the Browser key matching `AIzaSyBZS_Bfl7Bj4axlFt8Pg3HebYzAbrqBDQs`
-3. Under "Application restrictions", set to "HTTP referrers" and add:
-   - `https://commai-b98fe.web.app/*`
-   - `https://commai-b98fe.firebaseapp.com/*`
-   - `http://localhost:3000/*` (for development)
-4. Under "API restrictions", limit to only:
+1. Open Google Cloud Console → APIs & Services → Credentials
+2. Find the browser key matching `AIzaSyBZS_...`
+3. Set **Application restrictions** to HTTP referrers:
+   - `https://<PROJECT_ID>.web.app/*`
+   - `https://<PROJECT_ID>.firebaseapp.com/*`
+   - `http://localhost:3000/*`
+4. Set **API restrictions** to:
    - Firebase Realtime Database API
    - Firebase Auth API
-   - Cloud Functions API
+   - Identity Toolkit API
+   - Token Service API
 
-### Step 3: Clean Git History (Optional but Recommended)
+### Step 3: Clean Git History (Recommended)
 
 ```bash
-# Install BFG Repo-Cleaner
-# Then run:
+# Using BFG Repo-Cleaner:
 bfg --delete-files serviceAccountKey.json
+bfg --delete-folders credentials
 git reflog expire --expire=now --all
 git gc --prune=now --aggressive
-git push --force
+# Coordinate with team before force-pushing
+git push --force --all
 ```
-
-**WARNING:** Force push rewrites history for all collaborators. Coordinate with team before executing.
 
 ### Step 4: Audit Access Logs
 
-1. Go to [Google Cloud Audit Logs](https://console.cloud.google.com/logs/query?project=commai-b98fe)
-2. Filter for the compromised service account email
-3. Check for any unauthorized access during the exposure window (2025-03-01 to present)
-4. Look for suspicious operations: user creation, data reads, config changes
+1. Open Google Cloud Console → Logging → Logs Explorer
+2. Filter by the compromised service account email
+3. Review the full exposure window (2025-03-01 to present)
+4. Look for: unexpected user creations, data reads, config changes
 
 ---
 
-## Verification Checklist
+## Post-Rotation Verification Checklist
 
-After rotation, verify each item:
+After completing the manual steps above:
 
-- [ ] Old service account key `1136dd44...` returns authentication error when used
-- [ ] Old service account key `f0aff750...` returns authentication error when used
-- [ ] New service account key works for Cloud Functions deployment
-- [ ] API key restrictions are applied in Google Cloud Console
-- [ ] Dashboard can still authenticate users
-- [ ] Cloud Function `setUserPassword` still works with new credentials
-- [ ] No service account keys exist anywhere in the repo working tree
-- [ ] `.gitignore` blocks `credentials/`, `serviceAccountKey*.json`
-- [ ] `git log --all -- credentials/` shows only historical deletions
+- [ ] Old key `1136dd44...` returns authentication error
+- [ ] Old key `f0aff750...` returns authentication error
+- [ ] New service account key works for `firebase deploy --only functions`
+- [ ] New service account key works for `firebase deploy --only database`
+- [ ] Client API key restrictions applied in GCP Console
+- [ ] Dashboard login still works (admin and caregiver)
+- [ ] Cloud Function `setUserPassword` still works end-to-end
+- [ ] No `credentials/` directory on disk: `ls credentials/` fails
+- [ ] No service account files anywhere: `find . -name 'serviceAccountKey*'` returns nothing
+- [ ] `.gitignore` blocks `credentials/`, `serviceAccountKey*.json`, `.env.local`
+- [ ] `git status` shows no untracked credential files
 
 ---
 
-## Ongoing Monitoring
+## Ongoing Requirements
 
-- Set up Google Cloud alerts for service account key usage
-- Review IAM audit logs monthly
-- Ensure no new service account keys are created without team knowledge
+- Google Cloud audit logging enabled for the project
+- IAM audit log review monthly
+- No service account keys created without documented approval
+- All new developers receive copy of `docs/security/secret-handling.md`

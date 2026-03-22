@@ -3,29 +3,19 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 
-// Mock Firebase
 jest.mock('../src/firebaseConfig', () => ({
   db: {},
   auth: {},
 }));
 
 jest.mock('firebase/auth', () => ({
-  onAuthStateChanged: jest.fn((auth, cb) => {
-    cb(null);
-    return jest.fn();
-  }),
+  onAuthStateChanged: jest.fn((auth, cb) => { cb(null); return jest.fn(); }),
   signInWithEmailAndPassword: jest.fn(),
   signOut: jest.fn(),
 }));
 
-jest.mock('firebase/database', () => ({
-  ref: jest.fn(),
-  get: jest.fn(() => Promise.resolve({ val: () => null })),
-}));
-
 const theme = createTheme();
 
-// We need to mock useAuth to test different states
 let mockAuthState = {};
 jest.mock('../src/contexts/AuthContext', () => ({
   ...jest.requireActual('../src/contexts/AuthContext'),
