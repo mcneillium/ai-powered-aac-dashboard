@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-The dashboard has been through four passes: initial refactor, security hardening, remediation, and final verification. All code-level issues are resolved. **94 automated tests pass across 9 suites**, including 56 Firebase rules tests and 10 schema-contract alignment tests.
+The dashboard has been through four passes: initial refactor, security hardening, remediation, and final verification. All code-level issues are resolved. **95 automated tests pass across 10 suites**, including 56 Firebase rules tests and 10 schema-contract alignment tests.
 
 **Overall Status: CONDITIONALLY READY** — Manual credential rotation and Firebase deployment are the only remaining blockers.
 
@@ -17,7 +17,7 @@ The dashboard has been through four passes: initial refactor, security hardening
 - Created `src/shared/schema.js` — codified shared data contracts as importable module
 - Created `__tests__/schemaContractAlignment.test.js` — 10 tests verifying schema ↔ rules alignment
 - Created `docs/architecture/shared-contracts.md` — authoritative contract reference
-- Test count: 94 tests across 9 suites, all passing
+- Test count: 95 tests across 10 suites, all passing
 
 ### Remediation Pass (2026-03-22)
 - Verified B1-B7 blocker claims against actual file evidence (see `docs/security/secret-remediation.md`)
@@ -158,23 +158,22 @@ The dashboard has been through four passes: initial refactor, security hardening
 | Login.test.js | 4 | Form rendering, input, branding |
 | logger.test.js | 4 | Firebase push, offline fallback, flush |
 | Signup.test.js | 2 | Form rendering, sign-in link |
+| App.test.js | 1 | Module existence, exports, routing structure |
 
-**Total: 94 tests across 9 suites — all passing**
+**Total: 95 tests across 10 suites — all passing**
 
 ---
 
 ## 5. Deployment Checklist
 
+**Deploy script:** `.\scripts\deploy-dashboard.ps1` (handles tests + rules + functions)
+**Full runbook:** `docs/release/dashboard-ops-runbook.md`
+
 Before deploying to production:
 
-- [ ] Rotate compromised service account keys (see post-rotation-verification.md)
-- [ ] Restrict API key in Google Cloud Console
-- [ ] Deploy database rules: `firebase deploy --only database`
-- [ ] Deploy Cloud Functions: `firebase deploy --only functions`
-- [ ] Deploy hosting (if applicable): `firebase deploy --only hosting`
-- [ ] Verify all environment variables are set in production
-- [ ] Test login/signup flow end-to-end
-- [ ] Test admin and caregiver role access
-- [ ] Test Cloud Function password setting
+- [ ] Rotate compromised service account keys (see `docs/security/post-rotation-verification.md`)
+- [ ] Restrict API key in Google Cloud Console (see `docs/release/dashboard-ops-runbook.md` Phase 2)
+- [ ] Run `.\scripts\deploy-dashboard.ps1` (deploys database rules + Cloud Functions)
+- [ ] Smoke test: login, role-based access, Cloud Function (see runbook Phase 5)
 - [ ] Consider enabling Firebase App Check for additional API protection
 - [ ] Review Signup page: decide if open registration or invite-only
