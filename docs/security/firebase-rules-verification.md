@@ -1,9 +1,8 @@
 # Firebase Realtime Database Rules Verification
 
-**Rules file:** `database.rules.json`
-**Last updated:** 2026-03-22
-**Test file:** `__tests__/firebaseRulesEmulator.test.js` (39 tests) + `__tests__/databaseRules.test.js` (17 tests)
-**Test status:** ALL 56 rule tests PASSING
+**Rules file:** `database.rules.json` (96 lines)
+**Test suites:** `__tests__/databaseRules.test.js` (17 tests), `__tests__/firebaseRulesEmulator.test.js` (39 tests)
+**Last run:** 2026-03-22 — **56 tests, ALL PASSING**
 
 ---
 
@@ -13,77 +12,91 @@
 firebase deploy --only database
 ```
 
-Or paste `database.rules.json` into Firebase Console > Realtime Database > Rules.
+Or paste contents of `database.rules.json` into Firebase Console → Realtime Database → Rules.
+
+**Status:** Rules file exists and is configured in `firebase.json`. Deployment requires Firebase CLI + authentication.
+
+---
+
+## Design Invariants (all verified by automated tests)
+
+| Invariant | Test evidence |
+|-----------|---------------|
+| No rule uses `root.child()` for role checks | `databaseRules.test.js`: "user write rules do NOT reference database role field" |
+| All admin write rules use `auth.token.role` | `databaseRules.test.js`: "fineTuneMetrics write rules use custom claims" |
+| Default deny on unknown paths | `firebaseRulesEmulator.test.js`: "/unknown WRITE → DENIED (even admin)" |
+| Role field accepts only `admin` or `caregiver` | `databaseRules.test.js`: "role validation only allows admin or caregiver" |
+| Log entries require `action` + `timestamp` | `firebaseRulesEmulator.test.js`: "/userLogs WRITE missing action → DENIED" |
 
 ---
 
 ## Pass/Fail Matrix
 
-### Unauthenticated User (auth = null)
+### Unauthenticated (auth = null)
 
-| Path | Operation | Result | Test |
-|------|-----------|--------|------|
-| `/users` | READ | DENIED | `auth != null` |
-| `/caregivers` | READ | DENIED | `auth != null` |
-| `/userLogs` | READ | DENIED | `auth != null` |
-| `/userLogs` | WRITE | DENIED | `auth != null` |
-| `/fineTuneMetrics` | READ | DENIED | `auth != null` |
-| `/unknown` | READ | DENIED | `$other: false` |
-| `/unknown` | WRITE | DENIED | `$other: false` |
+| Path | Op | Result | Tested |
+|------|----|--------|--------|
+| `/users` | READ | DENIED | yes |
+| `/caregivers` | READ | DENIED | yes |
+| `/userLogs` | READ | DENIED | yes |
+| `/userLogs` | WRITE | DENIED | yes |
+| `/fineTuneMetrics` | READ | DENIED | yes |
+| `/unknown` | READ | DENIED | yes |
+| `/unknown` | WRITE | DENIED | yes |
 
-### Authenticated User (no role claim)
+### Authenticated (no role claim)
 
-| Path | Operation | Result | Test |
-|------|-----------|--------|------|
-| `/users` | READ | ALLOWED | `auth != null` |
-| `/users/$uid` | WRITE | DENIED | requires `auth.token.role === 'admin'` |
-| `/users/$uid/caregiverId` | WRITE self | ALLOWED | `auth.uid === newData.val()` |
-| `/users/$uid/caregiverId` | WRITE other | DENIED | not self, not admin |
-| `/userLogs/-new` | WRITE valid | ALLOWED | `auth != null` + validates schema |
-| `/userLogs/-new` | WRITE invalid | DENIED | missing required `action`/`timestamp` |
-| `/userSync/$self` | WRITE | ALLOWED | `auth.uid === $userId` |
-| `/userSync/$other` | WRITE | DENIED | not self, not admin |
-| `/fineTuneMetrics` | WRITE | DENIED | requires admin claim |
-| `/caregivers/$id` | WRITE | DENIED | requires admin claim |
+| Path | Op | Result | Tested |
+|------|----|--------|--------|
+| `/users` | READ | ALLOWED | yes |
+| `/users/$uid` | WRITE | DENIED | yes |
+| `/users/$uid/caregiverId` | WRITE self | ALLOWED | yes |
+| `/userLogs` | WRITE valid | ALLOWED | yes |
+| `/userLogs` | WRITE invalid | DENIED | yes |
+| `/userSync/$self` | WRITE | ALLOWED | yes |
+| `/userSync/$other` | WRITE | DENIED | yes |
+| `/fineTuneMetrics` | WRITE | DENIED | yes |
+| `/caregivers/$id` | WRITE | DENIED | yes |
 
 ### Caregiver (role: caregiver)
 
-| Path | Operation | Result | Test |
-|------|-----------|--------|------|
-| `/users` | READ | ALLOWED | `auth != null` |
-| `/users/$uid` | WRITE | DENIED | caregiver !== admin |
-| `/users/$uid/caregiverId` | WRITE self | ALLOWED | self-assign |
-| `/caregivers` | WRITE | DENIED | requires admin |
-| `/userLogs` | WRITE | ALLOWED | `auth != null` |
-| `/fineTuneMetrics` | WRITE | DENIED | requires admin |
+| Path | Op | Result | Tested |
+|------|----|--------|--------|
+| `/users` | READ | ALLOWED | yes |
+| `/users/$uid` | WRITE | DENIED | yes |
+| `/users/$uid/caregiverId` | WRITE self | ALLOWED | yes |
+| `/caregivers` | WRITE | DENIED | yes |
+| `/userLogs` | WRITE | ALLOWED | yes |
+| `/fineTuneMetrics` | WRITE | DENIED | yes |
 
 ### Admin (role: admin)
 
-| Path | Operation | Result | Test |
-|------|-----------|--------|------|
-| `/users/$uid` | WRITE | ALLOWED | admin claim |
-| `/users/$uid/role` = `"caregiver"` | WRITE | ALLOWED | valid enum |
-| `/users/$uid/role` = `"admin"` | WRITE | ALLOWED | valid enum |
-| `/users/$uid/role` = `"superadmin"` | WRITE | DENIED | validation: not in enum |
-| `/caregivers/$id` | WRITE | ALLOWED | admin claim |
-| `/fineTuneMetrics` | WRITE | ALLOWED | admin claim |
-| `/userSync/$any` | WRITE | ALLOWED | admin claim |
-| `/unknown` | WRITE | DENIED | default deny (even admin) |
+| Path | Op | Result | Tested |
+|------|----|--------|--------|
+| `/users/$uid` | WRITE | ALLOWED | yes |
+| `/users/$uid/role = "caregiver"` | WRITE | ALLOWED | yes |
+| `/users/$uid/role = "admin"` | WRITE | ALLOWED | yes |
+| `/users/$uid/role = "superadmin"` | WRITE | DENIED | yes |
+| `/caregivers/$id` | WRITE | ALLOWED | yes |
+| `/fineTuneMetrics` | WRITE | ALLOWED | yes |
+| `/userSync/$any` | WRITE | ALLOWED | yes |
+| `/unknown` | WRITE | DENIED | yes |
 
----
+### Validation
 
-## Security Invariants (all verified by automated tests)
-
-1. **NO rule uses `root.child()` for role checks** — prevents privilege escalation via client-writable DB fields
-2. **All admin write rules use `auth.token.role`** — custom claims are server-set and tamper-proof
-3. **Default deny catch-all** — `$other` blocks all unknown paths
-4. **Role enum validation** — only `admin` and `caregiver` accepted
-5. **Data type validation** — names (string 1-200), emails (regex), timestamps (number), actions (string ≤500)
+| Field | Constraint | Tested |
+|-------|-----------|--------|
+| `users/$uid/name` | string, 1–200 chars | yes |
+| `users/$uid/email` | string, email regex | yes |
+| `users/$uid/createdAt` | number | yes |
+| `userLogs/$logId/action` | string, ≤500 chars | yes |
+| `userLogs/$logId/timestamp` | number, required | yes |
+| `fineTuneMetrics/$id/epoch` | number, required | yes |
 
 ---
 
 ## Known Limitations
 
-1. **Log filtering is client-side.** Caregivers can read all logs; filtering to assigned users happens in React. Server-side scoping would require restructuring data model.
-2. **Caregiver self-assignment.** Any caregiver can set `caregiverId` on any user to their own UID. This is by design for the Connect User flow.
-3. **Logs are not append-only.** Any authenticated user can overwrite existing log entries. For production, consider `.write: !data.exists()`.
+1. **Log read filtering is client-side.** Caregivers can read all logs; scoping to assigned users happens in React. Server-side scoping would need data model restructuring.
+2. **Caregiver self-assignment.** A caregiver can set `caregiverId` on any user to their own UID. This is by design for the Connect User flow.
+3. **Logs not append-only.** An authenticated user can overwrite existing log entries. For production, add `.write: "!data.exists()"`.

@@ -8,9 +8,16 @@
 
 ## Executive Summary
 
-The dashboard has been through three passes: initial refactor, security hardening, and final remediation. All code-level security issues are resolved. Dead/dangerous code has been removed. 84 automated tests pass across 8 suites, including 56 Firebase rules tests.
+The dashboard has been through four passes: initial refactor, security hardening, remediation, and final verification. All code-level issues are resolved. **94 automated tests pass across 9 suites**, including 56 Firebase rules tests and 10 schema-contract alignment tests.
 
 **Overall Status: CONDITIONALLY READY** — Manual credential rotation and Firebase deployment are the only remaining blockers.
+
+### Verification Pass (2026-03-22, latest)
+- File-backed re-verification of all 6 checklist items (see `docs/release/dashboard-go-no-go.md`)
+- Created `src/shared/schema.js` — codified shared data contracts as importable module
+- Created `__tests__/schemaContractAlignment.test.js` — 10 tests verifying schema ↔ rules alignment
+- Created `docs/architecture/shared-contracts.md` — authoritative contract reference
+- Test count: 94 tests across 9 suites, all passing
 
 ### Remediation Pass (2026-03-22)
 - Verified B1-B7 blocker claims against actual file evidence (see `docs/security/secret-remediation.md`)
@@ -142,14 +149,17 @@ The dashboard has been through three passes: initial refactor, security hardenin
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
-| Login.test.js | 4 | Form rendering, input, branding |
-| AuthContext.test.js | 6 | Loading, null auth, admin/caregiver/null roles, provider requirement |
+| firebaseRulesEmulator.test.js | 39 | Full role-based pass/fail matrix, security invariants |
+| databaseRules.test.js | 17 | Structure, claims-only auth, default-deny, validation |
+| schemaContractAlignment.test.js | 10 | Schema ↔ rules field/path/length alignment |
+| cloudFunctions.test.js | 8 | Auth, RBAC, validation, CORS, method, logging |
+| AuthContext.test.js | 5 | Roles, claims-only, provider, no DB import |
 | PrivateRoute.test.js | 5 | Loading, redirect, auth, role match/mismatch |
-| logger.test.js | 4 | Firebase push, offline fallback, flush, empty flush |
+| Login.test.js | 4 | Form rendering, input, branding |
+| logger.test.js | 4 | Firebase push, offline fallback, flush |
 | Signup.test.js | 2 | Form rendering, sign-in link |
-| cloudFunctions.test.js | 8 | Auth, RBAC, validation, CORS, method, logging, error handling |
 
-**Total: 29 tests across 6 files**
+**Total: 94 tests across 9 suites — all passing**
 
 ---
 
