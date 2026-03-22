@@ -71,15 +71,68 @@ Full test suite: **9 suites, 94 tests, 0 failures.**
 
 **Overall: CONDITIONAL GO** — code is ready. Four manual ops actions remain.
 
+**Full runbook:** `docs/release/dashboard-ops-runbook.md`
+
 ---
 
-## Unblocking Commands
+## Ops Blocker Details
 
+### Blocker 1: Rotate Service Account Keys (HIGH — security)
+
+Two compromised keys remain valid in GCP (key IDs `1136dd44...` and `f0aff750...`).
+See: `docs/release/dashboard-ops-runbook.md` → Phase 1
+
+### Blocker 2: Restrict Firebase API Key (MEDIUM — hardening)
+
+Client API key `AIzaSyBZS_...` has no HTTP referrer restriction.
+See: `docs/release/dashboard-ops-runbook.md` → Phase 2
+
+### Blocker 3: Deploy Database Rules (HIGH — functional)
+
+`database.rules.json` is validated locally (56 tests) but not yet live.
 ```bash
-firebase login
-firebase deploy --only database    # deploys database.rules.json
-firebase deploy --only functions   # deploys hardened setUserPassword
+cd functions && npm install && cd ..
+firebase deploy --only database --project commai-b98fe
 ```
+See: `docs/release/dashboard-ops-runbook.md` → Phase 3
 
-Then in Firebase Console: rotate service account keys.
-Then in GCP Console: restrict API key to HTTP referrers.
+### Blocker 4: Deploy Cloud Functions (HIGH — functional)
+
+`setUserPassword` (v2, europe-west1, Node 22) is tested locally but not yet live.
+**Note:** `functions/node_modules` is not checked in — run `npm install` in `functions/` before deploy.
+```bash
+cd functions && npm install && cd ..
+firebase deploy --only functions --project commai-b98fe
+```
+See: `docs/release/dashboard-ops-runbook.md` → Phase 4
+
+### Functions Config Requirements
+
+The Cloud Function uses **zero** external config:
+- No `functions.config()` calls
+- No `defineSecret()` or `defineString()` calls
+- No `process.env` references
+- `admin.initializeApp()` uses default GCP service credentials (auto-provisioned)
+- CORS origins are hardcoded to: `localhost:3000`, `commai-b98fe.web.app`, `commai-b98fe.firebaseapp.com`
+
+### Deploy order
+
+1. Rotate keys first (Phase 1) — otherwise deploy may use a compromised credential
+2. Deploy rules (Phase 3) — no dependency on functions
+3. Deploy functions (Phase 4) — no dependency on rules
+4. Restrict API key (Phase 2) — do last so it doesn't break testing during deploy
+5. Smoke test (Phase 5)
+
+---
+
+## Post-Deploy Verification
+
+After all four blockers are resolved, run the smoke tests in `docs/release/dashboard-ops-runbook.md` → Phase 5 and check off:
+
+- [ ] Unauthenticated database reads return `Permission denied`
+- [ ] Default-deny blocks unknown paths
+- [ ] Admin login shows admin nav
+- [ ] Caregiver login shows caregiver nav, no admin routes
+- [ ] `setUserPassword` returns 401 without auth, 200 with valid admin token
+- [ ] CORS blocks unauthorized origins
+- [ ] `firebase functions:log` shows no crash loops

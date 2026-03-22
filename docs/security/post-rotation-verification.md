@@ -2,8 +2,9 @@
 
 **Project:** CommAI Dashboard
 **Created:** 2026-03-21
-**Last Updated:** 2026-03-21
+**Last Updated:** 2026-03-22
 **Status:** BLOCKED ON MANUAL CONSOLE ACTION — see steps below
+**Ops Runbook:** `docs/release/dashboard-ops-runbook.md`
 
 ---
 
@@ -119,6 +120,42 @@ After completing the manual steps above:
 - [ ] No service account files anywhere: `find . -name 'serviceAccountKey*'` returns nothing
 - [ ] `.gitignore` blocks `credentials/`, `serviceAccountKey*.json`, `.env.local`
 - [ ] `git status` shows no untracked credential files
+
+---
+
+## Post-Deploy Verification (after rotation + deploy)
+
+After completing key rotation AND deploying rules + functions, verify the full stack:
+
+### Database rules active
+
+```bash
+# Unauthenticated read — must return Permission denied
+curl -s "https://commai-b98fe-default-rtdb.europe-west1.firebasedatabase.app/users.json"
+```
+
+### Cloud Function responding
+
+```bash
+# Should return 401 (auth required) — proves function is live
+curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"uid":"x","newPassword":"Test1234"}' \
+  https://europe-west1-commai-b98fe.cloudfunctions.net/setUserPassword
+```
+
+### Dashboard end-to-end
+
+- [ ] Admin login at `https://commai-b98fe.web.app` → admin dashboard loads
+- [ ] Caregiver login → caregiver dashboard loads, no admin nav items
+- [ ] Admin sets password for another user → 200 OK
+- [ ] Admin attempts to set own password → 400 rejected
+- [ ] Caregiver navigates to `/user-management` → redirected
+
+### Functions runtime
+
+- [ ] `firebase functions:log --project commai-b98fe` shows no crash loops
+- [ ] Response times under 5s for `setUserPassword`
 
 ---
 

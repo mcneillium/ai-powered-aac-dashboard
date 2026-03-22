@@ -95,6 +95,50 @@ Or paste contents of `database.rules.json` into Firebase Console → Realtime Da
 
 ---
 
+## Live Deploy Verification
+
+After running `firebase deploy --only database --project commai-b98fe`:
+
+### Quick checks (curl)
+
+```bash
+DB_URL="https://commai-b98fe-default-rtdb.europe-west1.firebasedatabase.app"
+
+# 1. Unauthenticated read — must be denied
+curl -s "$DB_URL/users.json"
+# Expected: {"error":"Permission denied"}
+
+# 2. Write to unknown path — must be denied (default-deny catch-all)
+curl -s -X PUT -d '"test"' "$DB_URL/doesNotExist.json"
+# Expected: {"error":"Permission denied"}
+
+# 3. Authenticated read (replace TOKEN with a valid Firebase ID token)
+curl -s "$DB_URL/users.json?auth=TOKEN"
+# Expected: JSON object of users (or {} if empty)
+```
+
+### Console checks
+
+1. Firebase Console → Realtime Database → **Rules** tab
+2. Verify the rules JSON matches `database.rules.json` in this repo exactly
+3. Confirm the `$other` catch-all shows `.read: false, .write: false`
+4. Confirm `users.$uid.role` has `.validate` restricting to `admin` or `caregiver`
+
+### Role-based write checks
+
+Use the Firebase Console **Data** tab or the REST API with a valid token:
+
+| Action | Expected result |
+|--------|----------------|
+| Write to `/users/{uid}/name` as admin | Succeeds |
+| Write to `/users/{uid}/name` as caregiver | Permission denied |
+| Write to `/users/{uid}/role` with value `superadmin` as admin | Validation failed |
+| Write to `/fineTuneMetrics/{id}` as caregiver | Permission denied |
+| Write to `/userSync/{ownUid}` as caregiver | Succeeds |
+| Write to `/userSync/{otherUid}` as caregiver | Permission denied |
+
+---
+
 ## Known Limitations
 
 1. **Log read filtering is client-side.** Caregivers can read all logs; scoping to assigned users happens in React. Server-side scoping would need data model restructuring.
