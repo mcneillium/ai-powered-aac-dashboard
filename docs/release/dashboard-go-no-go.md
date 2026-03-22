@@ -1,7 +1,8 @@
 # Dashboard Go/No-Go — File-Backed Verification
 
-**Date:** 2026-03-22
-**Method:** Every assertion below is backed by a file read, grep, or test run. No prior-summary inference.
+**Date:** 2026-03-22 (updated)
+**Method:** Every assertion backed by file reads, greps, or test runs.
+**Deploy script:** `scripts/deploy-dashboard.ps1` (PowerShell)
 
 ---
 
@@ -29,7 +30,7 @@
 - `databaseRules.test.js`: 17 structural tests (invariants, claims-only, default-deny)
 - `firebaseRulesEmulator.test.js`: 39 role-based pass/fail matrix tests (unauth, authed, caregiver, admin, validation)
 
-Full test suite: **9 suites, 94 tests, 0 failures.**
+Full test suite: **10 suites, 95 tests, 0 failures** (includes `src/App.test.js` smoke test).
 
 ### 4. Has the schema-fix patch been applied?
 
@@ -63,7 +64,9 @@ Full test suite: **9 suites, 94 tests, 0 failures.**
 | Rules tests exist and pass (56 tests) | GO |
 | Schema file exists and matches rules | GO |
 | No hardcoded secrets in source | GO |
-| All tests passing (94/94) | GO |
+| All tests passing (95/95, 10 suites) | GO |
+| Deploy script tested (`scripts/deploy-dashboard.ps1`) | GO |
+| Node version pinned (`.nvmrc` → 22) | GO |
 | Service account keys rotated | BLOCKED (manual) |
 | API key domain-restricted | BLOCKED (manual) |
 | Rules deployed to Firebase | BLOCKED (requires CLI) |
@@ -115,7 +118,19 @@ The Cloud Function uses **zero** external config:
 - `admin.initializeApp()` uses default GCP service credentials (auto-provisioned)
 - CORS origins are hardcoded to: `localhost:3000`, `commai-b98fe.web.app`, `commai-b98fe.firebaseapp.com`
 
+### Node Version
+
+`.nvmrc` pins to Node 22. Functions `package.json` requires `"node": "22"`.
+If local machine runs Node 24, deploy still targets GCP Node 22 runtime, but run `nvm use 22` for lockfile consistency.
+
 ### Deploy order
+
+```powershell
+# One-command deploy (recommended):
+.\scripts\deploy-dashboard.ps1
+
+# Or step by step:
+```
 
 1. Rotate keys first (Phase 1) — otherwise deploy may use a compromised credential
 2. Deploy rules (Phase 3) — no dependency on functions

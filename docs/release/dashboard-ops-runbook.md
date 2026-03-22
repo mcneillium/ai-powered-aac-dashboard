@@ -3,24 +3,55 @@
 **Project:** commai-b98fe
 **Region:** europe-west1
 **Date:** 2026-03-22
+**Deploy script:** `scripts/deploy-dashboard.ps1` (PowerShell, canonical)
+
+---
+
+## Automated Deploy (Recommended)
+
+The deploy script handles tests, dependency install, lint, and Firebase deploy in one shot:
+
+```powershell
+# Full deploy (tests + rules + functions)
+.\scripts\deploy-dashboard.ps1
+
+# Dry run (validates everything, prints commands, does not deploy)
+.\scripts\deploy-dashboard.ps1 -DryRun
+
+# Skip tests (use only if tests were just verified separately)
+.\scripts\deploy-dashboard.ps1 -SkipTests
+```
+
+The script will:
+1. Check Node version (requires 22+, warns on 23+)
+2. Verify `firebase.json` has both `database` and `functions` config
+3. Verify Firebase CLI auth and project selection
+4. Run all tests non-interactively (`CI=true`, `--watchAll=false`)
+5. Install `functions/node_modules` (not checked in)
+6. Lint Cloud Functions
+7. Deploy database rules
+8. Deploy Cloud Functions
+
+If any step fails, the script stops immediately with a clear error.
 
 ---
 
 ## Prerequisites
 
-```bash
-# 1. Firebase CLI installed (v13+)
+```powershell
+# 1. Node 22 required (functions target Node 22)
+node -v
+# Must show v22.x.x — if not: nvm install 22; nvm use 22
+# .nvmrc in repo root pins to 22
+
+# 2. Firebase CLI (v13+)
 npm install -g firebase-tools
 
-# 2. Authenticated with a project-owner account
+# 3. Authenticate
 firebase login
 
-# 3. Verify correct project is selected
+# 4. Select project
 firebase use commai-b98fe
-# Expected: "Now using project commai-b98fe"
-
-# 4. Install Cloud Functions dependencies (required — not checked in)
-cd functions && npm install && cd ..
 ```
 
 ---
@@ -32,7 +63,7 @@ cd functions && npm install && cd ..
 ### Steps
 
 1. Open **Google Cloud Console** → IAM & Admin → Service Accounts
-2. Select service account: `firebase-adminsdk-fbsvc@commai-b98fe.iam.gserviceaccount.com`
+2. Select: `firebase-adminsdk-fbsvc@commai-b98fe.iam.gserviceaccount.com`
 3. Go to the **Keys** tab
 4. **Delete** key `1136dd44...`
 5. **Delete** key `f0aff750...`
@@ -42,22 +73,23 @@ cd functions && npm install && cd ..
 
 ### Verification
 
-```bash
-# Old keys must fail:
-# Use the old key file (if retained for testing) with any gcloud command —
-# expect "UNAUTHENTICATED" or "Invalid JWT Signature"
+```powershell
+# Old keys must fail (if retained for testing):
+$env:GOOGLE_APPLICATION_CREDENTIALS = "C:\path\to\OLD-key.json"
+firebase deploy --only database --project commai-b98fe --dry-run
+# Expected: UNAUTHENTICATED or Invalid JWT Signature
 
 # New key works:
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/new-key.json
+$env:GOOGLE_APPLICATION_CREDENTIALS = "C:\path\to\NEW-key.json"
 firebase deploy --only database --project commai-b98fe --dry-run
-# Should print "would deploy database rules" without auth errors
+# Expected: success without auth errors
 ```
 
 ---
 
 ## Phase 2: Restrict Firebase API Key
 
-**Why:** The client API key (`AIzaSyBZS_...`) is currently unrestricted. While Firebase client keys are semi-public by design, restricting them prevents abuse from unauthorized origins.
+**Why:** The client API key (`AIzaSyBZS_...`) is currently unrestricted. Restricting prevents abuse from unauthorized origins.
 
 ### Steps
 
@@ -77,7 +109,7 @@ firebase deploy --only database --project commai-b98fe --dry-run
 ### Verification
 
 - Open `https://commai-b98fe.web.app` — login should work normally
-- Open a different domain and try using the key — should return `API key not valid for this domain`
+- From a different domain, try using the key — should return `API key not valid for this domain`
 
 ---
 
@@ -87,31 +119,25 @@ firebase deploy --only database --project commai-b98fe --dry-run
 
 **Linked via:** `firebase.json` → `"database": { "rules": "database.rules.json" }`
 
-### Command
+### Manual command (if not using deploy script)
 
-```bash
+```powershell
 firebase deploy --only database --project commai-b98fe
-```
-
-Expected output:
-```
-✔  database: rules ready to deploy.
-✔  Deploy complete!
 ```
 
 ### Verification
 
-```bash
-# 1. Fetch live rules via REST API
-curl -s "https://commai-b98fe-default-rtdb.europe-west1.firebasedatabase.app/.settings/rules.json?auth=ACCESS_TOKEN" | python3 -m json.tool
-
-# Compare with local file — should be identical
-```
-
-Or in Firebase Console → Realtime Database → Rules tab:
+Firebase Console → Realtime Database → Rules tab:
 - Confirm `$other` node has `.read: false, .write: false`
 - Confirm `users.$uid` write requires `auth.token.role === 'admin'`
 - Confirm `fineTuneMetrics` write requires `auth.token.role === 'admin'`
+
+Or via PowerShell:
+```powershell
+# Unauthenticated read — must be denied
+Invoke-RestMethod "https://commai-b98fe-default-rtdb.europe-west1.firebasedatabase.app/users.json"
+# Expected: error "Permission denied"
+```
 
 ---
 
@@ -123,122 +149,101 @@ Or in Firebase Console → Realtime Database → Rules tab:
 
 **Runtime:** Node 22 (per `functions/package.json` → `"engines": { "node": "22" }`)
 
-**Server-side config:** None. The function uses `admin.initializeApp()` with default credentials (auto-provisioned by GCP). No `functions.config()`, no `defineSecret()`, no `process.env` references.
+**Server-side config:** None. Verified by inspecting `functions/index.js`:
+- No `functions.config()` calls (legacy pattern — not used)
+- No `defineSecret()` or `defineString()` calls (modern pattern — not needed)
+- No `process.env` references
+- `admin.initializeApp()` uses default GCP service credentials (auto-provisioned)
+- CORS origins hardcoded: `localhost:3000`, `commai-b98fe.web.app`, `commai-b98fe.firebaseapp.com`
 
-### Pre-deploy
+**No Firebase environment config or secrets need to be set.**
 
-```bash
+### Manual commands (if not using deploy script)
+
+```powershell
 # Install dependencies (not checked into git)
-cd functions && npm install && cd ..
+Push-Location functions; npm install; Pop-Location
 
-# Run lint (same as predeploy hook in firebase.json)
-cd functions && npm run lint && cd ..
-```
+# Lint
+Push-Location functions; npm run lint; Pop-Location
 
-### Command
-
-```bash
+# Deploy
 firebase deploy --only functions --project commai-b98fe
-```
-
-Expected output:
-```
-✔  functions: Finished running predeploy script.
-i  functions: preparing functions directory for uploading...
-✔  functions[setUserPassword(europe-west1)] Successful create operation.
-✔  Deploy complete!
-
-Function URL (setUserPassword(europe-west1)):
-  https://europe-west1-commai-b98fe.cloudfunctions.net/setUserPassword
 ```
 
 ### Verification
 
-```bash
-# 1. OPTIONS preflight (should return 204)
-curl -s -o /dev/null -w "%{http_code}" \
-  -X OPTIONS \
-  -H "Origin: https://commai-b98fe.web.app" \
-  -H "Access-Control-Request-Method: POST" \
-  https://europe-west1-commai-b98fe.cloudfunctions.net/setUserPassword
-# Expected: 204
+```powershell
+# POST without auth — should return 401
+Invoke-RestMethod -Method POST -Uri "https://europe-west1-commai-b98fe.cloudfunctions.net/setUserPassword" `
+  -ContentType "application/json" -Body '{"uid":"test","newPassword":"Test1234"}'
+# Expected: 401 Unauthorized
 
-# 2. POST without auth (should return 401)
-curl -s -w "\n%{http_code}" \
-  -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"uid":"test","newPassword":"Test1234"}' \
-  https://europe-west1-commai-b98fe.cloudfunctions.net/setUserPassword
-# Expected: 401 {"error":"Unauthorized: valid auth token required"}
-
-# 3. GET (should return 405)
-curl -s -w "\n%{http_code}" \
-  https://europe-west1-commai-b98fe.cloudfunctions.net/setUserPassword
-# Expected: 405 {"error":"Method Not Allowed"}
+# GET — should return 405
+Invoke-RestMethod "https://europe-west1-commai-b98fe.cloudfunctions.net/setUserPassword"
+# Expected: 405 Method Not Allowed
 ```
 
 ---
 
 ## Phase 5: Post-Deploy Smoke Tests
 
-Run these in order after all four phases above are complete.
+Run after all four phases above are complete.
 
-### 5.1 Database Rules — Live Verification
+### 5.1 Database Rules — Live
 
-| Test | Command/Action | Expected |
-|------|---------------|----------|
-| Unauthenticated read | `curl https://commai-b98fe-default-rtdb.europe-west1.firebasedatabase.app/users.json` | `{"error":"Permission denied"}` |
-| Unauthenticated write | `curl -X PUT -d '{"x":1}' .../unknown.json` | `{"error":"Permission denied"}` |
-| Default deny | `curl .../doesNotExist.json?auth=VALID_TOKEN` | `{"error":"Permission denied"}` |
+| Test | Expected |
+|------|----------|
+| Unauthenticated read `/users.json` | `{"error":"Permission denied"}` |
+| Write to unknown path | `{"error":"Permission denied"}` |
+| Authenticated read with valid token | JSON data returned |
 
 ### 5.2 Authentication Flow
 
-| Test | Action | Expected |
-|------|--------|----------|
-| Admin login | Login at `https://commai-b98fe.web.app` with admin account | Sees admin dashboard, user management, caregivers nav |
-| Caregiver login | Login with caregiver account | Sees caregiver dashboard, no user management nav |
-| Invalid login | Wrong password | Error message, no redirect |
+| Test | Expected |
+|------|----------|
+| Admin login at `commai-b98fe.web.app` | Admin dashboard, user management nav |
+| Caregiver login | Caregiver dashboard, no admin nav |
+| Invalid password | Error message, no redirect |
 
 ### 5.3 Role-Based Access
 
-| Test | Action | Expected |
-|------|--------|----------|
-| Admin → User Management | Navigate to `/user-management` | Page loads, user list visible |
-| Caregiver → User Management | Navigate to `/user-management` directly | Redirected away |
-| Admin → Set Password | Use SetPasswordForm for a non-self user | 200 response |
-| Admin → Set Own Password | Attempt via API | 400 "Cannot set your own password" |
+| Test | Expected |
+|------|----------|
+| Admin → `/user-management` | Page loads |
+| Caregiver → `/user-management` | Redirected |
+| Admin → Set Password (other user) | 200 OK |
+| Admin → Set Own Password | 400 rejected |
 
-### 5.4 Cloud Function CORS
+### 5.4 CORS
 
 | Test | Expected |
 |------|----------|
 | Request from `commai-b98fe.web.app` | `Access-Control-Allow-Origin` header present |
-| Request from unauthorized origin | No CORS header in response |
+| Request from unauthorized origin | No CORS header |
 
 ---
 
 ## Phase 6: Optional — Clean Git History
 
-**When:** After key rotation is confirmed and all deploys succeed.
+**When:** After key rotation and all deploys confirmed.
 
-```bash
-# Install BFG Repo-Cleaner
-# https://rtyley.github.io/bfg-repo-cleaner/
+```powershell
+# Using BFG Repo-Cleaner (requires Java)
+# Download from: https://rtyley.github.io/bfg-repo-cleaner/
 
-# Remove service account files from all history
-bfg --delete-files serviceAccountKey.json
-bfg --delete-folders credentials
+java -jar bfg.jar --delete-files serviceAccountKey.json
+java -jar bfg.jar --delete-folders credentials
 
-# Clean up refs
 git reflog expire --expire=now --all
 git gc --prune=now --aggressive
 
-# Coordinate with all team members before force-pushing
+# Coordinate with team before force-pushing
 git push --force --all
 git push --force --tags
 ```
 
-**Warning:** This rewrites history. All team members must re-clone after force push.
+**Warning:** Rewrites history. All team members must re-clone.
 
 ---
 
@@ -250,8 +255,21 @@ git push --force --tags
 | [ ] Phase 2: API key restricted | |
 | [ ] Phase 3: Database rules deployed | |
 | [ ] Phase 4: Cloud Functions deployed | |
-| [ ] Phase 5.1: Rules live verification passed | |
-| [ ] Phase 5.2: Auth flow smoke test passed | |
-| [ ] Phase 5.3: Role-based access verified | |
-| [ ] Phase 5.4: CORS verified | |
+| [ ] Phase 5.1: Rules live verification | |
+| [ ] Phase 5.2: Auth flow smoke test | |
+| [ ] Phase 5.3: Role-based access | |
+| [ ] Phase 5.4: CORS | |
 | [ ] Phase 6: Git history cleaned (optional) | |
+
+---
+
+## Node Version Compatibility
+
+| Component | Required | Notes |
+|-----------|----------|-------|
+| Dashboard (React/CRA) | Node 18+ | Runs on 22 and 24 |
+| Cloud Functions | **Node 22** | `functions/package.json` → `"engines": { "node": "22" }` |
+| Firebase CLI deploy | Node 22 recommended | Deploy uploads to GCP Node 22 runtime |
+| `.nvmrc` | `22` | Pin for all contributors |
+
+If your local Node is v24, Firebase CLI will deploy to the GCP Node 22 runtime regardless — the `engines` field controls the cloud runtime, not local execution. However, `npm install` in `functions/` may produce a different lockfile on Node 24 vs 22. For consistency, use Node 22 locally.
