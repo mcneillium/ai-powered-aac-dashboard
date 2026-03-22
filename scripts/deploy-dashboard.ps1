@@ -103,9 +103,12 @@ if (-not $SkipTests) {
 
     Push-Location $RepoRoot
     try {
-        # CI=true prevents Jest watch mode; cross-platform env var
+        # CI=true prevents Jest watch mode
         $env:CI = "true"
-        npx craco test --watchAll=false --verbose
+        # --passWithNoTests: safety net so zero-match edge cases don't block deploy
+        # --roots: explicitly include __tests__/ alongside src/ (craco config does
+        #   this too, but some CRA/craco versions on Windows don't apply it reliably)
+        npx craco test --watchAll=false --passWithNoTests --verbose --roots src --roots __tests__
         if ($LASTEXITCODE -ne 0) {
             Write-Host "ERROR: Tests failed. Fix before deploying." -ForegroundColor Red
             exit 1

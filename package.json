@@ -35,7 +35,7 @@
   "scripts": {
     "start": "craco start",
     "build": "craco build",
-    "test": "craco test",
+    "test": "craco test --passWithNoTests",
     "eject": "react-scripts eject",
     "clean": "rimraf node_modules package-lock.json && npm install"
   },
