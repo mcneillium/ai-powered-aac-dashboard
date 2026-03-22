@@ -1,14 +1,14 @@
 # Master Release Status
 
 **Project:** CommAI Dashboard
-**Date:** 2026-03-22
+**Date:** 2026-03-22 (updated)
 **Branch:** `claude/dashboard-architecture-ux-kKfmX`
 
 ---
 
 ## Overall Status: CONDITIONAL GO
 
-The dashboard is code-complete and security-hardened. One manual step blocks production deployment.
+Code-complete and security-hardened. Manual Firebase Console actions block production.
 
 ---
 
@@ -24,32 +24,33 @@ The dashboard is code-complete and security-hardened. One manual step blocks pro
 | Service account key files deleted from disk | DONE | Code |
 | Service account key files removed from git tracking | DONE | Code |
 | `.gitignore` blocks all credential patterns | DONE | Code |
+| Dead code with security risks removed | DONE | Code |
+| No Vision/HF/OpenAI keys found (B1, B2 not confirmed) | N/A | Verified |
 | Compromised service account keys rotated/disabled | BLOCKED | Manual (Firebase Console) |
 | Client API key restricted to referrer domains | BLOCKED | Manual (GCP Console) |
-| Git history cleaned (BFG) | NOT STARTED | Manual (optional, post-rotation) |
 
 ### Firebase Backend
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Database security rules created | DONE | `database.rules.json` |
-| Rules use custom claims only (no DB role reads) | DONE | Verified by 17 automated tests |
-| Rules configured in `firebase.json` | DONE | `firebase deploy --only database` ready |
-| Rules deployed to Firebase | BLOCKED | Requires Firebase CLI + auth |
-| Cloud Function hardened (auth, CORS, validation) | DONE | 8 automated contract tests |
+| `database.rules.json` created | DONE | 96 lines, least-privilege, claims-only |
+| `firebase.json` configured | DONE | Database + Functions |
+| `.firebaserc` configured | DONE | Project default set |
+| Rules use custom claims only (no DB role reads) | DONE | 56 rule tests verify this |
+| Rules deployed to Firebase | BLOCKED | Requires `firebase deploy --only database` |
+| Cloud Function hardened | DONE | 8 automated contract tests |
+| Old unhardened `src/functions/index.js` removed | DONE | Was a dangerous copy |
 | AuthContext uses custom claims only | DONE | 5 automated tests |
-| Role-based route guards on all admin routes | DONE | 5 automated PrivateRoute tests |
 
 ### Dashboard Quality
 
 | Item | Status | Notes |
 |------|--------|-------|
-| All pages reviewed and polished | DONE | 12 pages, all consistent |
-| Dead code removed | DONE | Unused imports, variables, packages |
+| All pages reviewed and polished | DONE | Active pages consistent |
+| Dead code removed (8 files) | DONE | TestSystem, Notifications, DashboardCharts, chartOptions, App.css, logo.svg, reportWebVitals, src/functions/ |
+| MyUsers.js fixed to use useAuth() | DONE | Was using getAuth() directly |
 | Broken dependencies removed | DONE | firebase-admin, react-icons, recharts |
-| Test runner configured correctly | DONE | craco jest config with roots + testMatch |
-| All tests passing | DONE | 45/45 across 7 suites |
-| Branding applied | DONE | MUI theme, sidebar, login/signup |
+| All tests passing | DONE | 84/84 across 8 suites |
 
 ### Shared Contracts
 
@@ -58,9 +59,7 @@ The dashboard is code-complete and security-hardened. One manual step blocks pro
 | User profile schema documented | DONE | `dashboard-release-readiness.md` |
 | Caregiver schema documented | DONE | |
 | Log event schema documented | DONE | |
-| Sync status schema documented | DONE | |
-| ML metrics schema documented | DONE | |
-| Auth contract documented | DONE | Custom claims only |
+| Auth contract: custom claims only | DONE | |
 | Cloud Function API documented | DONE | |
 
 ---
@@ -68,25 +67,26 @@ The dashboard is code-complete and security-hardened. One manual step blocks pro
 ## Test Results
 
 ```
-Test Suites: 7 passed, 7 total
-Tests:       45 passed, 45 total
+Test Suites: 8 passed, 8 total
+Tests:       84 passed, 84 total
 ```
 
 | Suite | Tests | Validates |
 |-------|-------|-----------|
+| firebaseRulesEmulator | 39 | Full role-based pass/fail matrix, security invariants |
+| databaseRules | 17 | Structure, auth, claims-only, validation, default-deny |
+| cloudFunctions | 8 | Auth, RBAC, validation, CORS, method, logging |
 | AuthContext | 5 | Role resolution, provider requirement, no DB fallback |
 | PrivateRoute | 5 | Auth redirect, role enforcement |
 | Login | 4 | Form rendering, input, branding |
+| logger | 4 | Firebase push, offline fallback, flush |
 | Signup | 2 | Form rendering, navigation |
-| Logger | 4 | Firebase push, offline fallback, flush |
-| CloudFunctions | 8 | Auth, RBAC, validation, CORS, method, logging |
-| DatabaseRules | 17 | Structure, auth, claims-only, validation, default-deny |
 
 ---
 
-## Blocked Items (Manual Action Required)
+## Blocked Items
 
-1. **Rotate service account keys** — See `docs/security/post-rotation-verification.md`
-2. **Restrict client API key** — See `docs/security/post-rotation-verification.md` Step 2
+1. **Rotate service account keys** — `docs/security/post-rotation-verification.md`
+2. **Restrict client API key** — Same doc, Step 2
 3. **Deploy database rules** — `firebase deploy --only database`
 4. **Deploy Cloud Functions** — `firebase deploy --only functions`

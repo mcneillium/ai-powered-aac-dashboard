@@ -1,6 +1,6 @@
 # Final Dashboard Audit Report
 
-**Date:** 2026-03-21
+**Date:** 2026-03-22 (updated from 2026-03-21)
 **Auditor:** Security & Production Hardening Lead
 **Scope:** Full post-refactor security, architecture, and production-readiness audit
 
@@ -8,9 +8,18 @@
 
 ## Executive Summary
 
-The dashboard underwent a major refactor addressing critical security issues (exposed credentials, unprotected Cloud Functions, missing role guards). This audit verifies the remediations and identifies remaining items for production readiness.
+The dashboard has been through three passes: initial refactor, security hardening, and final remediation. All code-level security issues are resolved. Dead/dangerous code has been removed. 84 automated tests pass across 8 suites, including 56 Firebase rules tests.
 
-**Overall Status: CONDITIONALLY READY** - Code-level security is solid. Manual credential rotation in Firebase Console is required before production deployment.
+**Overall Status: CONDITIONALLY READY** — Manual credential rotation and Firebase deployment are the only remaining blockers.
+
+### Remediation Pass (2026-03-22)
+- Verified B1-B7 blocker claims against actual file evidence (see `docs/security/secret-remediation.md`)
+- B1 (Vision key), B2 (HF token): files do not exist in this repo
+- B3 (env infrastructure), B4 (rules), B5 (firebase config): already existed
+- B6 (rules tests): FIXED — 39 emulator-ready tests + `@firebase/rules-unit-testing` installed
+- B7 (schema patch): no patch file exists in repo
+- Removed 8 dead/dangerous files including unhardened Cloud Function copy
+- Added comprehensive pass/fail matrix for all 4 role scenarios
 
 ---
 
