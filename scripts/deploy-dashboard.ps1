@@ -3,8 +3,9 @@
 .SYNOPSIS
     CommAI Dashboard deployment script (PowerShell).
 .DESCRIPTION
-    Runs tests, then deploys database rules and Cloud Functions to Firebase.
-    Stops on any failure. Designed for Windows PowerShell.
+    Runs tests, builds the React app, then deploys hosting, database rules,
+    and Cloud Functions to Firebase. Stops on any failure.
+    Designed for Windows PowerShell.
 .EXAMPLE
     .\scripts\deploy-dashboard.ps1
     .\scripts\deploy-dashboard.ps1 -SkipTests
@@ -76,17 +77,21 @@ Assert-FileExists (Join-Path $RepoRoot ".firebaserc") "Firebase project config"
 Assert-FileExists (Join-Path $FunctionsDir "index.js") "Cloud Functions entry"
 Assert-FileExists (Join-Path $FunctionsDir "package.json") "Cloud Functions package.json"
 
-# Verify firebase.json has both database and functions config
+# Verify firebase.json has database, hosting, and functions config
 $FirebaseConfig = Get-Content (Join-Path $RepoRoot "firebase.json") -Raw | ConvertFrom-Json
 if (-not $FirebaseConfig.database) {
     Write-Host "ERROR: firebase.json missing 'database' config" -ForegroundColor Red
+    exit 1
+}
+if (-not $FirebaseConfig.hosting) {
+    Write-Host "ERROR: firebase.json missing 'hosting' config" -ForegroundColor Red
     exit 1
 }
 if (-not $FirebaseConfig.functions) {
     Write-Host "ERROR: firebase.json missing 'functions' config" -ForegroundColor Red
     exit 1
 }
-Write-Host "firebase.json: database + functions config present"
+Write-Host "firebase.json: database + hosting + functions config present"
 
 # Verify Firebase CLI is authenticated and on correct project
 Write-Step "Verifying Firebase project"
@@ -123,6 +128,23 @@ if (-not $SkipTests) {
     Write-Host "Skipping tests (--SkipTests flag)" -ForegroundColor Yellow
 }
 
+# ── Build ────────────────────────────────────────────────────────────────────
+
+Write-Step "Building React app for production"
+
+Push-Location $RepoRoot
+try {
+    npm run build
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: Production build failed." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "Build complete (output in build/)." -ForegroundColor Green
+}
+finally {
+    Pop-Location
+}
+
 # ── Functions dependencies ───────────────────────────────────────────────────
 
 Write-Step "Installing Cloud Functions dependencies"
@@ -150,11 +172,20 @@ finally {
 
 if ($DryRun) {
     Write-Step "DRY RUN — would deploy:"
+    Write-Host "  firebase deploy --only hosting --project $Project"
     Write-Host "  firebase deploy --only database --project $Project"
     Write-Host "  firebase deploy --only functions --project $Project"
     Write-Host "Exiting without deploying." -ForegroundColor Yellow
     exit 0
 }
+
+Write-Step "Deploying hosting (React app)"
+firebase deploy --only hosting --project $Project
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Hosting deploy failed." -ForegroundColor Red
+    exit 1
+}
+Write-Host "Hosting deployed." -ForegroundColor Green
 
 Write-Step "Deploying database rules"
 firebase deploy --only database --project $Project
@@ -177,11 +208,11 @@ Write-Host "Cloud Functions deployed." -ForegroundColor Green
 Write-Step "Deploy complete"
 Write-Host ""
 Write-Host "  Project:   $Project" -ForegroundColor Green
+Write-Host "  Dashboard: https://$Project.web.app" -ForegroundColor Green
 Write-Host "  Rules:     database.rules.json deployed" -ForegroundColor Green
 Write-Host "  Function:  setUserPassword (europe-west1)" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "  1. Run smoke tests (see docs/release/dashboard-ops-runbook.md Phase 5)"
-Write-Host "  2. Verify rules in Firebase Console -> Realtime Database -> Rules"
-Write-Host "  3. Test function: curl -X POST https://europe-west1-$Project.cloudfunctions.net/setUserPassword"
+Write-Host "  1. Open https://$Project.web.app and verify login works"
+Write-Host "  2. Run smoke tests (see docs/release/dashboard-ops-runbook.md Phase 5)"
 Write-Host ""
