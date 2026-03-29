@@ -122,7 +122,11 @@ export default function UserManagement() {
 
   const handleAssignCaregiverToUser = async (userId, caregiverId) => {
     try {
-      await update(ref(db, `users/${userId}`), { caregiverId });
+      // Atomic multi-path update: user record + caregiverAssignments
+      const updates = {};
+      updates[`users/${userId}/caregiverId`] = caregiverId;
+      updates[`caregiverAssignments/${caregiverId}/${userId}`] = true;
+      await update(ref(db), updates);
       toast.success('Caregiver assigned.');
       setSelectedCaregiverForUser((prev) => ({ ...prev, [userId]: '' }));
     } catch {

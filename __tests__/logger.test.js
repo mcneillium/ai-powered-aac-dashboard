@@ -42,8 +42,8 @@ describe('logger', () => {
 
   test('flushPendingLogs pushes stored logs and clears storage', async () => {
     localStorage.setItem('commai_pending_logs', JSON.stringify([
-      { action: 'pending_1', timestamp: 1000 },
-      { action: 'pending_2', timestamp: 2000 },
+      { action: 'pending_1', timestamp: 1000, targetUserId: 'user-1' },
+      { action: 'pending_2', timestamp: 2000, targetUserId: 'user-2' },
     ]));
 
     await flushPendingLogs();

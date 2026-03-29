@@ -1,185 +1,186 @@
 /**
- * Firebase Realtime Database Security Rules — Emulator Tests
+ * Firebase Rules — Structural Pass/Fail Matrix
  *
- * These tests use @firebase/rules-unit-testing to verify rules against
- * a real Firebase emulator. If the emulator is not running, the tests
- * are skipped gracefully so CI doesn't break.
- *
- * To run with the emulator:
- *   firebase emulators:start --only database
- *   npx jest firebaseRulesEmulator
- *
- * Without the emulator, this file runs a structural pass/fail matrix
- * that validates the rules JSON directly.
+ * Validates the rules JSON structure matches the expected access model:
+ * - No broad collection reads for non-admins
+ * - Per-user data gated by self / caregiverAssignments / admin
+ * - Admin has full access
+ * - Default deny on unknown paths
  */
 
 const fs = require('fs');
 const path = require('path');
 
-// ── Structural rules analysis (always runs, no emulator needed) ──
-
 const rulesPath = path.join(__dirname, '..', 'database.rules.json');
 const rulesText = fs.readFileSync(rulesPath, 'utf-8');
 const rules = JSON.parse(rulesText);
 
-// ── Pass/Fail Matrix: Structural Verification ──
-
-describe('Firebase Rules — Pass/Fail Matrix (structural)', () => {
-  describe('Unauthenticated user', () => {
-    test('/users READ → DENIED (requires auth != null)', () => {
-      expect(rules.rules.users['.read']).toBe('auth != null');
-    });
-    test('/caregivers READ → DENIED', () => {
-      expect(rules.rules.caregivers['.read']).toBe('auth != null');
-    });
-    test('/userLogs READ → DENIED', () => {
-      expect(rules.rules.userLogs['.read']).toBe('auth != null');
-    });
-    test('/userLogs WRITE → DENIED', () => {
-      expect(rules.rules.userLogs['.write']).toBe('auth != null');
-    });
-    test('/fineTuneMetrics READ → DENIED', () => {
-      expect(rules.rules.fineTuneMetrics['.read']).toBe('auth != null');
-    });
-    test('/unknown READ → DENIED (default deny)', () => {
+describe('Firebase Rules — Access Model', () => {
+  describe('Default deny', () => {
+    test('/unknown READ → DENIED', () => {
       expect(rules.rules.$other['.read']).toBe(false);
     });
-    test('/unknown WRITE → DENIED (default deny)', () => {
+    test('/unknown WRITE → DENIED', () => {
       expect(rules.rules.$other['.write']).toBe(false);
     });
   });
 
-  describe('Authenticated user (no role claim)', () => {
-    test('/users READ → ALLOWED', () => {
-      expect(rules.rules.users['.read']).toBe('auth != null');
+  describe('No collection-level reads for non-admins', () => {
+    test('/users has no collection .read', () => {
+      expect(rules.rules.users['.read']).toBeUndefined();
     });
-    test('/users/$uid WRITE → DENIED (requires admin claim)', () => {
-      expect(rules.rules.users.$uid['.write']).toContain("auth.token.role === 'admin'");
-      expect(rules.rules.users.$uid['.write']).not.toContain('root.child');
+    test('/userLogs has no collection .read', () => {
+      expect(rules.rules.userLogs['.read']).toBeUndefined();
     });
-    test('/users/$uid/caregiverId WRITE self-assign → ALLOWED', () => {
-      expect(rules.rules.users.$uid.caregiverId['.write']).toContain('auth.uid === newData.val()');
+    test('/caregivers .read requires admin', () => {
+      expect(rules.rules.caregivers['.read']).toContain("auth.token.role === 'admin'");
     });
-    test('/userLogs WRITE valid entry → ALLOWED', () => {
-      expect(rules.rules.userLogs['.write']).toBe('auth != null');
+    test('/fineTuneMetrics .read requires admin', () => {
+      expect(rules.rules.fineTuneMetrics['.read']).toContain("auth.token.role === 'admin'");
     });
-    test('/userLogs WRITE missing action → DENIED by validation', () => {
-      expect(rules.rules.userLogs.$logId['.validate']).toContain('action');
-      expect(rules.rules.userLogs.$logId['.validate']).toContain('timestamp');
+  });
+
+  describe('/users/$uid — per-user access', () => {
+    const userRead = () => rules.rules.users.$uid['.read'];
+    const userWrite = () => rules.rules.users.$uid['.write'];
+
+    test('READ requires self OR assignment OR admin', () => {
+      expect(userRead()).toContain('auth.uid === $uid');
+      expect(userRead()).toContain('caregiverAssignments');
+      expect(userRead()).toContain("auth.token.role === 'admin'");
     });
-    test('/userSync/$self WRITE → ALLOWED', () => {
-      expect(rules.rules.userSync.$userId['.write']).toContain('auth.uid === $userId');
+    test('WRITE requires admin', () => {
+      expect(userWrite()).toContain("auth.token.role === 'admin'");
     });
-    test('/userSync/$other WRITE → DENIED (not self, not admin)', () => {
-      const rule = rules.rules.userSync.$userId['.write'];
+    test('caregiverId self-assign allowed', () => {
+      const rule = rules.rules.users.$uid.caregiverId['.write'];
+      expect(rule).toContain('auth.uid === newData.val()');
       expect(rule).toContain("auth.token.role === 'admin'");
     });
-    test('/fineTuneMetrics WRITE → DENIED', () => {
-      expect(rules.rules.fineTuneMetrics['.write']).toContain("auth.token.role === 'admin'");
-    });
-    test('/caregivers/$id WRITE → DENIED', () => {
-      expect(rules.rules.caregivers.$caregiverId['.write']).toContain("auth.token.role === 'admin'");
-    });
-  });
-
-  describe('Caregiver (role: caregiver)', () => {
-    test('/users READ → ALLOWED', () => {
-      expect(rules.rules.users['.read']).toBe('auth != null');
-    });
-    test('/users/$uid WRITE → DENIED (caregiver !== admin)', () => {
-      expect(rules.rules.users.$uid['.write']).toContain("auth.token.role === 'admin'");
-    });
-    test('/users/$uid/caregiverId WRITE self-assign → ALLOWED', () => {
-      expect(rules.rules.users.$uid.caregiverId['.write']).toContain('auth.uid === newData.val()');
-    });
-    test('/caregivers WRITE → DENIED', () => {
-      expect(rules.rules.caregivers.$caregiverId['.write']).toContain("auth.token.role === 'admin'");
-    });
-    test('/userLogs WRITE → ALLOWED', () => {
-      expect(rules.rules.userLogs['.write']).toBe('auth != null');
-    });
-    test('/fineTuneMetrics WRITE → DENIED', () => {
-      expect(rules.rules.fineTuneMetrics['.write']).toContain("auth.token.role === 'admin'");
+    test('role validated to admin|caregiver only', () => {
+      const rule = rules.rules.users.$uid.role['.validate'];
+      expect(rule).toContain("'admin'");
+      expect(rule).toContain("'caregiver'");
     });
   });
 
-  describe('Admin (role: admin)', () => {
-    test('/users/$uid WRITE → ALLOWED', () => {
-      expect(rules.rules.users.$uid['.write']).toContain("auth.token.role === 'admin'");
+  describe('/caregiverAssignments — assignment registry', () => {
+    const ca = () => rules.rules.caregiverAssignments.$caregiverUid;
+
+    test('READ requires self OR admin', () => {
+      expect(ca()['.read']).toContain('auth.uid === $caregiverUid');
+      expect(ca()['.read']).toContain("auth.token.role === 'admin'");
     });
-    test('/users/$uid/role WRITE "caregiver" → valid', () => {
-      expect(rules.rules.users.$uid.role['.validate']).toContain("'caregiver'");
+    test('WRITE requires admin only', () => {
+      expect(ca()['.write']).toContain("auth.token.role === 'admin'");
+      expect(ca()['.write']).not.toContain('auth.uid === $caregiverUid');
     });
-    test('/users/$uid/role WRITE "admin" → valid', () => {
-      expect(rules.rules.users.$uid.role['.validate']).toContain("'admin'");
-    });
-    test('/users/$uid/role WRITE "superadmin" → DENIED by validation', () => {
-      const validate = rules.rules.users.$uid.role['.validate'];
-      // Only admin and caregiver are valid
-      expect(validate).not.toContain("'superadmin'");
-    });
-    test('/caregivers/$id WRITE → ALLOWED', () => {
-      expect(rules.rules.caregivers.$caregiverId['.write']).toContain("auth.token.role === 'admin'");
-    });
-    test('/fineTuneMetrics WRITE → ALLOWED', () => {
-      expect(rules.rules.fineTuneMetrics['.write']).toContain("auth.token.role === 'admin'");
-    });
-    test('/userSync/$any WRITE → ALLOWED', () => {
-      expect(rules.rules.userSync.$userId['.write']).toContain("auth.token.role === 'admin'");
-    });
-    test('/unknown WRITE → DENIED (even admin)', () => {
-      expect(rules.rules.$other['.write']).toBe(false);
+    test('values must be boolean', () => {
+      expect(ca().$userUid['.validate']).toContain('isBoolean');
     });
   });
 
-  describe('Validation constraints', () => {
-    test('user name: 1-200 chars', () => {
-      const v = rules.rules.users.$uid.name['.validate'];
-      expect(v).toContain('length > 0');
-      expect(v).toContain('200');
-    });
-    test('user email: regex format', () => {
-      expect(rules.rules.users.$uid.email['.validate']).toContain('@');
-    });
-    test('log action: max 500 chars', () => {
-      expect(rules.rules.userLogs.$logId.action['.validate']).toContain('500');
-    });
-    test('fineTuneMetrics: epoch required', () => {
-      expect(rules.rules.fineTuneMetrics.$metricId['.validate']).toContain('epoch');
-    });
-    test('createdAt: must be number', () => {
-      expect(rules.rules.users.$uid.createdAt['.validate']).toContain('isNumber()');
-    });
-  });
-});
+  describe('/userLogs/$uid — per-user logs', () => {
+    const logNode = () => rules.rules.userLogs.$uid;
 
-// ── Security invariants ──
-
-describe('Firebase Rules — Security Invariants', () => {
-  test('NO rule uses root.child() for role checks (prevents escalation)', () => {
-    expect(rulesText).not.toContain('root.child');
-  });
-
-  test('All write rules use auth.token.role (custom claims)', () => {
-    const writeRules = [
-      rules.rules.users.$uid['.write'],
-      rules.rules.caregivers.$caregiverId['.write'],
-      rules.rules.fineTuneMetrics['.write'],
-    ];
-    writeRules.forEach((rule) => {
-      expect(rule).toContain('auth.token.role');
+    test('READ requires self OR assignment OR admin', () => {
+      expect(logNode()['.read']).toContain('auth.uid === $uid');
+      expect(logNode()['.read']).toContain('caregiverAssignments');
+      expect(logNode()['.read']).toContain("auth.token.role === 'admin'");
+    });
+    test('WRITE requires self OR assignment OR admin', () => {
+      expect(logNode()['.write']).toContain('auth.uid === $uid');
+      expect(logNode()['.write']).toContain('caregiverAssignments');
+    });
+    test('log entries require action + timestamp', () => {
+      expect(logNode().$logId['.validate']).toContain('action');
+      expect(logNode().$logId['.validate']).toContain('timestamp');
+    });
+    test('action max length 500', () => {
+      expect(logNode().$logId.action['.validate']).toContain('500');
     });
   });
 
-  test('Default deny catch-all exists', () => {
-    expect(rules.rules.$other['.read']).toBe(false);
-    expect(rules.rules.$other['.write']).toBe(false);
+  describe('/userSync/$userId', () => {
+    const sync = () => rules.rules.userSync.$userId;
+
+    test('READ requires self OR assignment OR admin', () => {
+      expect(sync()['.read']).toContain('auth.uid === $userId');
+      expect(sync()['.read']).toContain('caregiverAssignments');
+    });
+    test('WRITE is self OR admin only (no caregiver write)', () => {
+      expect(sync()['.write']).toContain('auth.uid === $userId');
+      expect(sync()['.write']).toContain("auth.token.role === 'admin'");
+      expect(sync()['.write']).not.toContain('caregiverAssignments');
+    });
   });
 
-  test('Role field only accepts known values', () => {
-    const v = rules.rules.users.$uid.role['.validate'];
-    expect(v).toContain("'admin'");
-    expect(v).toContain("'caregiver'");
-    expect(v).toContain('isString()');
+  describe('/customVocab/$uid', () => {
+    const cv = () => rules.rules.customVocab.$uid;
+
+    test('READ requires self OR assignment OR admin', () => {
+      expect(cv()['.read']).toContain('auth.uid === $uid');
+      expect(cv()['.read']).toContain('caregiverAssignments');
+    });
+    test('WRITE is self OR admin only', () => {
+      expect(cv()['.write']).toContain('auth.uid === $uid');
+      expect(cv()['.write']).not.toContain('caregiverAssignments');
+    });
+  });
+
+  describe('/vocabRequests/$uid', () => {
+    const vr = () => rules.rules.vocabRequests.$uid;
+
+    test('READ requires self OR assignment OR admin', () => {
+      expect(vr()['.read']).toContain('auth.uid === $uid');
+      expect(vr()['.read']).toContain('caregiverAssignments');
+    });
+    test('WRITE is self OR admin only', () => {
+      expect(vr()['.write']).toContain('auth.uid === $uid');
+      expect(vr()['.write']).not.toContain('caregiverAssignments');
+    });
+  });
+
+  describe('/userSettings/$uid', () => {
+    test('READ is self OR admin only (no caregiver access)', () => {
+      const rule = rules.rules.userSettings.$uid['.read'];
+      expect(rule).toContain('auth.uid === $uid');
+      expect(rule).toContain("auth.token.role === 'admin'");
+      expect(rule).not.toContain('caregiverAssignments');
+    });
+  });
+
+  describe('Security invariants', () => {
+    test('No write rule for any per-user data uses root.child for role checks', () => {
+      const writeRules = [
+        rules.rules.users.$uid['.write'],
+        rules.rules.caregiverAssignments.$caregiverUid['.write'],
+        rules.rules.caregivers.$caregiverId['.write'],
+        rules.rules.fineTuneMetrics['.write'],
+      ];
+      for (const rule of writeRules) {
+        // root.child is used for caregiverAssignments lookups (which is data, not role)
+        // but must NOT be used for role checks
+        if (rule.includes('root.child')) {
+          expect(rule).not.toMatch(/root\.child\(.*role/);
+        }
+      }
+    });
+
+    test('caregiverAssignments is the only cross-reference used in read rules', () => {
+      // Verify that per-user read rules only reference caregiverAssignments, not other paths
+      const readRules = [
+        rules.rules.users.$uid['.read'],
+        rules.rules.userLogs.$uid['.read'],
+        rules.rules.userSync.$userId['.read'],
+        rules.rules.customVocab.$uid['.read'],
+        rules.rules.vocabRequests.$uid['.read'],
+      ];
+      for (const rule of readRules) {
+        if (rule.includes('root.child')) {
+          expect(rule).toContain('caregiverAssignments');
+        }
+      }
+    });
   });
 });

@@ -38,13 +38,13 @@ const adminNavItems = [
   { label: 'Dashboard', path: '/admin', icon: <DashboardIcon /> },
   { label: 'Users', path: '/user-management', icon: <PeopleIcon /> },
   { label: 'Caregivers', path: '/caregivers', icon: <PersonAddIcon /> },
+  { label: 'Assign Users', path: '/connect-user', icon: <LinkIcon /> },
   { label: 'Logs', path: '/logs', icon: <LogsIcon /> },
   { label: 'ML Metrics', path: '/finetune-metrics', icon: <MLIcon /> },
 ];
 
 const caregiverNavItems = [
   { label: 'Dashboard', path: '/caregiver', icon: <DashboardIcon /> },
-  { label: 'My Users', path: '/connect-user', icon: <LinkIcon /> },
   { label: 'Logs', path: '/logs', icon: <LogsIcon /> },
 ];
 

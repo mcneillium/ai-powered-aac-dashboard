@@ -1,6 +1,6 @@
 // src/pages/MyUsers.js
 import React, { useEffect, useState } from 'react';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, get } from 'firebase/database';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { Container, Typography, List, ListItem, ListItemText, Paper, CircularProgress, Box } from '@mui/material';
@@ -12,16 +12,29 @@ export default function MyUsers() {
 
   useEffect(() => {
     if (!currentUser) return;
-    const usersRef = ref(db, 'users/');
-    const unsubscribe = onValue(usersRef, (snapshot) => {
-      const data = snapshot.val() || {};
-      const linkedUsers = Object.entries(data)
-        .map(([id, user]) => ({ id, ...user }))
-        .filter((user) => user.caregiverId === currentUser.uid);
-      setMyUsers(linkedUsers);
+
+    // Read assignments, then fetch each user individually
+    const assignRef = ref(db, `caregiverAssignments/${currentUser.uid}`);
+    const unsub = onValue(assignRef, async (snap) => {
+      const assignments = snap.val() || {};
+      const uids = Object.keys(assignments).filter((k) => assignments[k] === true);
+
+      const users = [];
+      for (const uid of uids) {
+        try {
+          const userSnap = await get(ref(db, `users/${uid}`));
+          if (userSnap.exists()) {
+            users.push({ id: uid, ...userSnap.val() });
+          }
+        } catch {
+          // Permission denied or deleted — skip
+        }
+      }
+      setMyUsers(users);
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    return () => unsub();
   }, [currentUser]);
 
   if (loading) {
@@ -46,7 +59,7 @@ export default function MyUsers() {
           </List>
         </Paper>
       ) : (
-        <Typography color="text.secondary">No users linked to you yet.</Typography>
+        <Typography color="text.secondary">No users assigned to you yet.</Typography>
       )}
     </Container>
   );

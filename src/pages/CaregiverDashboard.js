@@ -28,7 +28,6 @@ import {
   ListItem,
   ListItemText,
 } from '@mui/material';
-import PeopleIcon from '@mui/icons-material/People';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
 import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -50,21 +49,39 @@ export default function CaregiverDashboard() {
   const [vocabRequests, setVocabRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load assigned users
+  // Step 1: Read /caregiverAssignments/{myUid} to get assigned user UIDs
+  // Step 2: Read each /users/{uid} individually (server-enforced access)
   useEffect(() => {
     const uid = currentUser?.uid;
     if (!uid) return;
 
-    const usersRef = ref(db, 'users');
-    const unsub = onValue(usersRef, (snap) => {
-      const data = snap.val() || {};
-      const filtered = Object.entries(data)
-        .filter(([, info]) => info.caregiverId === uid)
-        .map(([id, info]) => ({ uid: id, ...info }));
-      setAssignedUsers(filtered);
-      // Auto-select first user if none selected
-      if (filtered.length > 0 && !selectedUser) {
-        setSelectedUser(filtered[0]);
+    const assignmentsRef = ref(db, `caregiverAssignments/${uid}`);
+    const unsub = onValue(assignmentsRef, async (snap) => {
+      const assignments = snap.val() || {};
+      const userUids = Object.keys(assignments).filter((k) => assignments[k] === true);
+
+      if (userUids.length === 0) {
+        setAssignedUsers([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch each assigned user's profile individually
+      const users = [];
+      for (const userUid of userUids) {
+        try {
+          const userSnap = await get(ref(db, `users/${userUid}`));
+          if (userSnap.exists()) {
+            users.push({ uid: userUid, ...userSnap.val() });
+          }
+        } catch {
+          // Permission denied or user deleted — skip
+        }
+      }
+
+      setAssignedUsers(users);
+      if (users.length > 0 && !selectedUser) {
+        setSelectedUser(users[0]);
       }
       setLoading(false);
     });
@@ -73,14 +90,13 @@ export default function CaregiverDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
 
-  // Load data for selected user
+  // Load per-user data for the selected user (all server-gated)
   useEffect(() => {
     if (!selectedUser) return;
     const uid = selectedUser.uid;
 
-    // Logs: /userLogs/{uid}
-    const logsRef = ref(db, `userLogs/${uid}`);
-    get(query(logsRef, orderByChild('timestamp'), limitToLast(200)))
+    // Logs: /userLogs/{uid} (per-user, server-enforced)
+    get(query(ref(db, `userLogs/${uid}`), orderByChild('timestamp'), limitToLast(200)))
       .then((snap) => {
         const data = snap.val() || {};
         const arr = Object.entries(data)
@@ -90,24 +106,8 @@ export default function CaregiverDashboard() {
       })
       .catch(() => setUserLogs([]));
 
-    // Also try top-level userLogs filtered by this user (legacy flat structure)
-    // The mobile app may store logs at /userLogs (flat) with targetUserId/userId
-    const flatLogsRef = ref(db, 'userLogs');
-    get(query(flatLogsRef, orderByChild('timestamp'), limitToLast(500)))
-      .then((snap) => {
-        const data = snap.val() || {};
-        const arr = Object.entries(data)
-          .map(([id, v]) => ({ id, ...v }))
-          .filter((l) => l.targetUserId === uid || l.userId === uid)
-          .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-        // Merge: use per-user logs if they exist, otherwise flat logs
-        setUserLogs((prev) => prev.length > 0 ? prev : arr);
-      })
-      .catch(() => {});
-
     // Custom vocab: /customVocab/{uid}
-    const vocabRef = ref(db, `customVocab/${uid}`);
-    get(vocabRef)
+    get(ref(db, `customVocab/${uid}`))
       .then((snap) => {
         const data = snap.val();
         if (Array.isArray(data)) {
@@ -123,8 +123,7 @@ export default function CaregiverDashboard() {
       .catch(() => setCustomVocab([]));
 
     // Vocab requests: /vocabRequests/{uid}
-    const reqRef = ref(db, `vocabRequests/${uid}`);
-    get(reqRef)
+    get(ref(db, `vocabRequests/${uid}`))
       .then((snap) => {
         const data = snap.val();
         if (data && typeof data === 'object') {
@@ -216,14 +215,9 @@ export default function CaregiverDashboard() {
         </Typography>
       </Box>
 
-      {/* No users assigned */}
       {assignedUsers.length === 0 ? (
-        <Alert severity="info" action={
-          <Button color="inherit" size="small" onClick={() => navigate('/connect-user')}>
-            Connect Users
-          </Button>
-        }>
-          No users assigned yet. Connect to users to start monitoring their activity.
+        <Alert severity="info">
+          No users assigned to you yet. Ask an admin to assign users to your account.
         </Alert>
       ) : (
         <>
@@ -259,195 +253,115 @@ export default function CaregiverDashboard() {
                 {selectedUser.name || selectedUser.email || 'User'}
               </Typography>
 
-              {/* ── Usage overview cards ── */}
+              {/* Usage overview cards */}
               <Grid container spacing={2} sx={{ mb: 3 }}>
                 <Grid item xs={6} sm={3}>
-                  <StatCard
-                    icon={<TouchAppIcon />}
-                    label="Words Tapped"
-                    value={insights.wordsTapped}
-                    color="primary.main"
-                  />
+                  <StatCard icon={<TouchAppIcon />} label="Words Tapped" value={insights.wordsTapped} color="primary.main" />
                 </Grid>
                 <Grid item xs={6} sm={3}>
-                  <StatCard
-                    icon={<RecordVoiceOverIcon />}
-                    label="Sentences Spoken"
-                    value={insights.sentencesSpoken}
-                    color="success.main"
-                  />
+                  <StatCard icon={<RecordVoiceOverIcon />} label="Sentences Spoken" value={insights.sentencesSpoken} color="success.main" />
                 </Grid>
                 <Grid item xs={6} sm={3}>
-                  <StatCard
-                    icon={<MenuBookIcon />}
-                    label="Vocabulary Size"
-                    value={insights.vocabSize}
-                    color="info.main"
-                  />
+                  <StatCard icon={<MenuBookIcon />} label="Vocabulary Size" value={insights.vocabSize} color="info.main" />
                 </Grid>
                 <Grid item xs={6} sm={3}>
-                  <StatCard
-                    icon={<ThumbUpIcon />}
-                    label="Suggestion Accept"
-                    value={`${insights.suggestionAcceptRate}%`}
-                    color="warning.main"
-                  />
+                  <StatCard icon={<ThumbUpIcon />} label="Suggestion Accept" value={`${insights.suggestionAcceptRate}%`} color="warning.main" />
                 </Grid>
               </Grid>
 
-              {/* ── Vocabulary insights ── */}
+              {/* Vocabulary insights */}
               <Grid container spacing={2} sx={{ mb: 3 }}>
-                {/* Missing / searched words */}
                 <Grid item xs={12} md={6}>
                   <Paper sx={{ p: 2, height: '100%' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                       <SearchOffIcon color="error" fontSize="small" />
-                      <Typography variant="subtitle1" fontWeight={600}>
-                        Missing Searched Words
-                      </Typography>
+                      <Typography variant="subtitle1" fontWeight={600}>Missing Searched Words</Typography>
                     </Box>
                     {insights.missingWords.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">
-                        No missing words recorded yet.
-                      </Typography>
+                      <Typography variant="body2" color="text.secondary">No missing words recorded yet.</Typography>
                     ) : (
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                         {insights.missingWords.map(([word, count]) => (
-                          <Chip
-                            key={word}
-                            label={`${word} (${count})`}
-                            size="small"
-                            color="error"
-                            variant="outlined"
-                          />
+                          <Chip key={word} label={`${word} (${count})`} size="small" color="error" variant="outlined" />
                         ))}
                       </Box>
                     )}
-
-                    {/* Vocab requests */}
                     {vocabRequests.length > 0 && (
                       <Box sx={{ mt: 2 }}>
-                        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
-                          Vocab Requests
-                        </Typography>
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>Vocab Requests</Typography>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                           {vocabRequests.slice(0, 15).map((req) => (
-                            <Chip
-                              key={req.id}
-                              label={req.word || req.term || req.id}
-                              size="small"
-                              variant="outlined"
-                            />
+                            <Chip key={req.id} label={req.word || req.term || req.id} size="small" variant="outlined" />
                           ))}
                         </Box>
                       </Box>
                     )}
                   </Paper>
                 </Grid>
-
-                {/* Frequent phrases to promote */}
                 <Grid item xs={12} md={6}>
                   <Paper sx={{ p: 2, height: '100%' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                       <TrendingUpIcon color="success" fontSize="small" />
-                      <Typography variant="subtitle1" fontWeight={600}>
-                        Frequent Phrases to Promote
-                      </Typography>
+                      <Typography variant="subtitle1" fontWeight={600}>Frequent Phrases to Promote</Typography>
                     </Box>
                     {insights.frequentPhrases.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">
-                        No phrase data yet. Usage patterns will appear here.
-                      </Typography>
+                      <Typography variant="body2" color="text.secondary">No phrase data yet.</Typography>
                     ) : (
                       <List dense disablePadding>
                         {insights.frequentPhrases.map(([phrase, count]) => (
                           <ListItem key={phrase} disableGutters>
-                            <ListItemText
-                              primary={phrase}
-                              secondary={`Used ${count} time${count > 1 ? 's' : ''}`}
-                            />
+                            <ListItemText primary={phrase} secondary={`Used ${count} time${count > 1 ? 's' : ''}`} />
                           </ListItem>
                         ))}
                       </List>
                     )}
                   </Paper>
                 </Grid>
-
-                {/* Most used words */}
                 <Grid item xs={12} md={6}>
                   <Paper sx={{ p: 2, height: '100%' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                       <StarIcon color="warning" fontSize="small" />
-                      <Typography variant="subtitle1" fontWeight={600}>
-                        Most Used Words
-                      </Typography>
+                      <Typography variant="subtitle1" fontWeight={600}>Most Used Words</Typography>
                     </Box>
                     {insights.mostUsedWords.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">
-                        No word usage data yet.
-                      </Typography>
+                      <Typography variant="body2" color="text.secondary">No word usage data yet.</Typography>
                     ) : (
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                         {insights.mostUsedWords.map(([word, count]) => (
-                          <Chip
-                            key={word}
-                            label={`${word} (${count})`}
-                            size="small"
-                            color="primary"
-                            variant="outlined"
-                          />
+                          <Chip key={word} label={`${word} (${count})`} size="small" color="primary" variant="outlined" />
                         ))}
                       </Box>
                     )}
                   </Paper>
                 </Grid>
-
-                {/* Custom vocabulary list */}
                 <Grid item xs={12} md={6}>
                   <Paper sx={{ p: 2, height: '100%' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                       <FormatListBulletedIcon color="info" fontSize="small" />
-                      <Typography variant="subtitle1" fontWeight={600}>
-                        Custom Vocabulary ({customVocab.length})
-                      </Typography>
+                      <Typography variant="subtitle1" fontWeight={600}>Custom Vocabulary ({customVocab.length})</Typography>
                     </Box>
                     {customVocab.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">
-                        No custom vocabulary added yet.
-                      </Typography>
+                      <Typography variant="body2" color="text.secondary">No custom vocabulary added yet.</Typography>
                     ) : (
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                         {customVocab.slice(0, 30).map((item, i) => (
-                          <Chip
-                            key={item.id || i}
-                            label={item.word || item.label || item.text || String(item)}
-                            size="small"
-                            variant="outlined"
-                          />
+                          <Chip key={item.id || i} label={item.word || item.label || item.text || String(item)} size="small" variant="outlined" />
                         ))}
-                        {customVocab.length > 30 && (
-                          <Chip label={`+${customVocab.length - 30} more`} size="small" />
-                        )}
+                        {customVocab.length > 30 && <Chip label={`+${customVocab.length - 30} more`} size="small" />}
                       </Box>
                     )}
                   </Paper>
                 </Grid>
               </Grid>
 
-              {/* ── Recent activity log ── */}
+              {/* Recent activity log */}
               <Paper sx={{ p: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="subtitle1" fontWeight={600}>
-                    Recent Activity
-                  </Typography>
-                  <Button size="small" onClick={() => navigate('/logs')}>
-                    View All Logs
-                  </Button>
+                  <Typography variant="subtitle1" fontWeight={600}>Recent Activity</Typography>
+                  <Button size="small" onClick={() => navigate('/logs')}>View All Logs</Button>
                 </Box>
                 {insights.recentLogs.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">
-                    No activity recorded yet.
-                  </Typography>
+                  <Typography variant="body2" color="text.secondary">No activity recorded yet.</Typography>
                 ) : (
                   <TableContainer>
                     <Table size="small">
@@ -461,9 +375,7 @@ export default function CaregiverDashboard() {
                       <TableBody>
                         {insights.recentLogs.map((log) => (
                           <TableRow key={log.id} hover>
-                            <TableCell>
-                              <Chip label={log.action || 'unknown'} size="small" variant="outlined" />
-                            </TableCell>
+                            <TableCell><Chip label={log.action || 'unknown'} size="small" variant="outlined" /></TableCell>
                             <TableCell>
                               <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 250 }}>
                                 {log.word || log.phrase || log.details || log.label || '—'}
@@ -489,7 +401,6 @@ export default function CaregiverDashboard() {
   );
 }
 
-// Small stat card component
 function StatCard({ icon, label, value, color }) {
   return (
     <Card>

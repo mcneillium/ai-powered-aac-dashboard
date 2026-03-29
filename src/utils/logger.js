@@ -6,6 +6,7 @@ const LOG_STORAGE_KEY = 'commai_pending_logs';
 
 /**
  * Logs an event to Firebase Realtime Database with offline fallback.
+ * Writes to /userLogs/{targetUserId}/{pushId} (per-user, server-gated).
  *
  * @param {string} action - Description of the event.
  * @param {Object} [metadata={}] - Additional data. May include targetUserId.
@@ -15,19 +16,23 @@ export async function logEvent(action, metadata = {}) {
   const targetUserId = metadata.targetUserId || (currentUser ? currentUser.uid : null);
   const carerId = currentUser ? currentUser.uid : null;
 
+  if (!targetUserId) {
+    console.error('logEvent: no targetUserId, cannot write log');
+    return;
+  }
+
   const logEntry = {
     targetUserId,
     carerId,
     action,
     timestamp: Date.now(),
     ...metadata,
-    // Remove targetUserId from spread to avoid duplication
   };
-  // Ensure targetUserId is set correctly after spread
   logEntry.targetUserId = targetUserId;
 
   try {
-    await push(ref(db, 'userLogs'), logEntry);
+    // Per-user log path: /userLogs/{targetUserId}/{pushId}
+    await push(ref(db, `userLogs/${targetUserId}`), logEntry);
   } catch (error) {
     console.error('Failed to push log to Firebase, saving locally:', error);
     saveLogLocally(logEntry);
@@ -60,7 +65,11 @@ export async function flushPendingLogs() {
     const logs = JSON.parse(stored);
     if (!logs.length) return;
 
-    const promises = logs.map((entry) => push(ref(db, 'userLogs'), entry));
+    const promises = logs.map((entry) => {
+      const uid = entry.targetUserId;
+      if (!uid) return Promise.resolve();
+      return push(ref(db, `userLogs/${uid}`), entry);
+    });
     await Promise.all(promises);
     localStorage.removeItem(LOG_STORAGE_KEY);
   } catch (err) {

@@ -75,20 +75,22 @@ function App() {
               }
             />
 
+            {/* Admin: assign users to caregivers */}
+            <Route
+              path="/connect-user"
+              element={
+                <ProtectedLayout requiredRole="admin">
+                  <ConnectUser />
+                </ProtectedLayout>
+              }
+            />
+
             {/* Caregiver routes (accessible by both caregivers and admins) */}
             <Route
               path="/caregiver"
               element={
                 <ProtectedLayout>
                   <CaregiverDashboard />
-                </ProtectedLayout>
-              }
-            />
-            <Route
-              path="/connect-user"
-              element={
-                <ProtectedLayout>
-                  <ConnectUser />
                 </ProtectedLayout>
               }
             />

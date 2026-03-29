@@ -52,7 +52,8 @@ describe('Schema ↔ Rules alignment', () => {
   });
 
   test('log fields match', () => {
-    const rulesLogFields = Object.keys(rules.rules.userLogs.$logId).filter(
+    // userLogs is now per-user: /userLogs/$uid/$logId
+    const rulesLogFields = Object.keys(rules.rules.userLogs.$uid.$logId).filter(
       (k) => !k.startsWith('.')
     );
     for (const field of rulesLogFields) {

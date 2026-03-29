@@ -26,46 +26,70 @@ import { useAuth } from '../contexts/AuthContext';
 export default function Logs() {
   const { currentUser, isAdmin, loading: authLoading } = useAuth();
   const [logs, setLogs] = useState([]);
-  const [linkedUserIds, setLinkedUserIds] = useState([]);
+  const [assignedUids, setAssignedUids] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
-  // For caregivers: fetch linked user IDs
+  // For caregivers: get assigned user UIDs from /caregiverAssignments
   useEffect(() => {
     if (isAdmin || authLoading || !currentUser) return;
-    get(ref(db, 'users'))
+    get(ref(db, `caregiverAssignments/${currentUser.uid}`))
       .then((snap) => {
         const data = snap.val() || {};
-        const linked = Object.entries(data)
-          .filter(([, u]) => u.caregiverId === currentUser.uid)
-          .map(([id]) => id);
-        setLinkedUserIds(linked);
+        setAssignedUids(Object.keys(data).filter((k) => data[k] === true));
       })
-      .catch(() => setLinkedUserIds([]));
+      .catch(() => setAssignedUids([]));
   }, [currentUser, isAdmin, authLoading]);
 
-  const fetchLogs = useCallback(() => {
-    if (!isAdmin && (authLoading || !currentUser)) return;
+  const fetchLogs = useCallback(async () => {
+    if (authLoading || !currentUser) return;
     setLoading(true);
 
-    get(query(ref(db, 'userLogs'), orderByChild('timestamp'), limitToLast(500)))
-      .then((snap) => {
-        let arr = Object.entries(snap.val() || {})
-          .map(([id, log]) => ({ id, ...log }))
-          .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-        if (!isAdmin) {
-          arr = arr.filter((l) =>
-            linkedUserIds.includes(l.userId) || linkedUserIds.includes(l.targetUserId),
-          );
+    try {
+      if (isAdmin) {
+        // Admin: read all users' logs by fetching the top-level /userLogs
+        // Under the new per-user structure, iterate known users
+        const usersSnap = await get(ref(db, 'users'));
+        const allUids = Object.keys(usersSnap.val() || {});
+        const allLogs = [];
+        for (const uid of allUids) {
+          try {
+            const snap = await get(query(ref(db, `userLogs/${uid}`), orderByChild('timestamp'), limitToLast(100)));
+            const data = snap.val() || {};
+            Object.entries(data).forEach(([id, v]) => {
+              allLogs.push({ id, ownerUid: uid, ...v });
+            });
+          } catch {
+            // skip inaccessible
+          }
         }
-        setLogs(arr);
-      })
-      .catch(() => setLogs([]))
-      .finally(() => setLoading(false));
-  }, [isAdmin, authLoading, currentUser, linkedUserIds]);
+        allLogs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        setLogs(allLogs.slice(0, 500));
+      } else {
+        // Caregiver: read only assigned users' logs (server-enforced per-user)
+        const allLogs = [];
+        for (const uid of assignedUids) {
+          try {
+            const snap = await get(query(ref(db, `userLogs/${uid}`), orderByChild('timestamp'), limitToLast(100)));
+            const data = snap.val() || {};
+            Object.entries(data).forEach(([id, v]) => {
+              allLogs.push({ id, ownerUid: uid, ...v });
+            });
+          } catch {
+            // permission denied — skip
+          }
+        }
+        allLogs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        setLogs(allLogs);
+      }
+    } catch {
+      setLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAdmin, authLoading, currentUser, assignedUids]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
@@ -73,7 +97,7 @@ export default function Logs() {
     if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
     return (l.action || '').toLowerCase().includes(s)
-      || (l.userId || '').toLowerCase().includes(s)
+      || (l.ownerUid || '').toLowerCase().includes(s)
       || (l.targetUserId || '').toLowerCase().includes(s);
   });
 
@@ -114,7 +138,7 @@ export default function Logs() {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>User ID</TableCell>
+                <TableCell>User</TableCell>
                 <TableCell>Action</TableCell>
                 <TableCell>Performed By</TableCell>
                 <TableCell>Timestamp</TableCell>
@@ -126,7 +150,7 @@ export default function Logs() {
                 .map((log) => (
                   <TableRow key={log.id} hover>
                     <TableCell>
-                      <Typography variant="body2">{log.targetUserId || log.userId || '-'}</Typography>
+                      <Typography variant="body2">{log.ownerUid || log.targetUserId || log.userId || '-'}</Typography>
                     </TableCell>
                     <TableCell>
                       <Chip label={log.action} size="small" variant="outlined" />

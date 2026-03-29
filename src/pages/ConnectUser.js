@@ -1,4 +1,5 @@
 // src/pages/ConnectUser.js
+// Admin-only: assigns users to caregivers via /caregiverAssignments
 import React, { useEffect, useState } from 'react';
 import { ref, onValue, update } from 'firebase/database';
 import { db } from '../firebaseConfig';
@@ -17,39 +18,64 @@ import {
   Paper,
   TextField,
   Alert,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import { toast } from 'react-hot-toast';
 import SearchIcon from '@mui/icons-material/Search';
 import LinkIcon from '@mui/icons-material/Link';
 
 export default function ConnectUser() {
-  const { currentUser } = useAuth();
-  const [unassignedUsers, setUnassignedUsers] = useState([]);
+  const { currentUser, isAdmin } = useAuth();
+  const [users, setUsers] = useState([]);
+  const [caregivers, setCaregivers] = useState([]);
+  const [selectedCaregiver, setSelectedCaregiver] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const unsubscribe = onValue(ref(db, 'users/'), (snapshot) => {
-      const data = snapshot.val() || {};
-      const list = Object.entries(data)
-        .map(([id, val]) => ({ id, ...val }))
-        .filter((user) => !user.caregiverId);
-      setUnassignedUsers(list);
+    if (!isAdmin) return;
+    const unsubUsers = onValue(ref(db, 'users'), (snap) => {
+      const data = snap.val() || {};
+      setUsers(Object.entries(data).map(([id, val]) => ({ id, ...val })));
     });
-    return () => unsubscribe();
-  }, []);
+    const unsubCg = onValue(ref(db, 'caregivers'), (snap) => {
+      const data = snap.val() || {};
+      setCaregivers(Object.entries(data).map(([id, val]) => ({ id, ...val })));
+    });
+    return () => { unsubUsers(); unsubCg(); };
+  }, [isAdmin]);
 
-  const connectUser = async (userId) => {
-    if (!currentUser) {
-      toast.error('You must be logged in.');
+  const unassignedUsers = users.filter((u) => !u.caregiverId);
+
+  const assignUser = async (userId) => {
+    if (!currentUser || !selectedCaregiver) {
+      toast.error('Select a caregiver first.');
       return;
     }
     try {
-      await update(ref(db, `users/${userId}`), { caregiverId: currentUser.uid });
-      toast.success('User connected.');
-    } catch {
-      toast.error('Error connecting user.');
+      // Atomic multi-path update: set both the user's caregiverId
+      // and the caregiverAssignments entry in one write
+      const updates = {};
+      updates[`users/${userId}/caregiverId`] = selectedCaregiver;
+      updates[`caregiverAssignments/${selectedCaregiver}/${userId}`] = true;
+      await update(ref(db), updates);
+      toast.success('User assigned to caregiver.');
+    } catch (err) {
+      toast.error('Error assigning user: ' + (err.message || ''));
     }
   };
+
+  if (!isAdmin) {
+    return (
+      <Container maxWidth="md" sx={{ py: 3 }}>
+        <Alert severity="warning">
+          User assignment is admin-only. Ask an admin to assign users to your account.
+        </Alert>
+      </Container>
+    );
+  }
 
   const filteredUsers = unassignedUsers.filter((user) => {
     const s = searchTerm.toLowerCase();
@@ -60,11 +86,26 @@ export default function ConnectUser() {
   return (
     <Container maxWidth="md" sx={{ py: 3 }}>
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h4">Connect to Users</Typography>
+        <Typography variant="h4">Assign Users to Caregivers</Typography>
         <Typography variant="body2" color="text.secondary">
-          Assign unlinked users to yourself
+          Select a caregiver, then assign unlinked users
         </Typography>
       </Box>
+
+      <FormControl fullWidth sx={{ mb: 2 }} size="small">
+        <InputLabel>Assign to caregiver</InputLabel>
+        <Select
+          value={selectedCaregiver}
+          label="Assign to caregiver"
+          onChange={(e) => setSelectedCaregiver(e.target.value)}
+        >
+          {caregivers.map((cg) => (
+            <MenuItem key={cg.id} value={cg.id}>
+              {cg.name || cg.email || cg.id}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
 
       <TextField
         placeholder="Search users..."
@@ -99,9 +140,10 @@ export default function ConnectUser() {
                         variant="contained"
                         size="small"
                         startIcon={<LinkIcon />}
-                        onClick={() => connectUser(user.id)}
+                        onClick={() => assignUser(user.id)}
+                        disabled={!selectedCaregiver}
                       >
-                        Connect
+                        Assign
                       </Button>
                     </TableCell>
                   </TableRow>

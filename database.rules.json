@@ -1,9 +1,8 @@
 {
   "rules": {
     "users": {
-      ".read": "auth != null",
       "$uid": {
-        ".read": "auth != null",
+        ".read": "auth != null && (auth.uid === $uid || root.child('caregiverAssignments').child(auth.uid).child($uid).exists() || auth.token.role === 'admin')",
         ".write": "auth != null && auth.token.role === 'admin'",
         "role": {
           ".validate": "newData.isString() && (newData.val() === 'admin' || newData.val() === 'caregiver')"
@@ -24,10 +23,19 @@
       }
     },
 
+    "caregiverAssignments": {
+      "$caregiverUid": {
+        ".read": "auth != null && (auth.uid === $caregiverUid || auth.token.role === 'admin')",
+        ".write": "auth != null && auth.token.role === 'admin'",
+        "$userUid": {
+          ".validate": "newData.isBoolean()"
+        }
+      }
+    },
+
     "caregivers": {
-      ".read": "auth != null",
+      ".read": "auth != null && auth.token.role === 'admin'",
       "$caregiverId": {
-        ".read": "auth != null",
         ".write": "auth != null && auth.token.role === 'admin'",
         "name": {
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200"
@@ -39,31 +47,33 @@
     },
 
     "userLogs": {
-      ".read": "auth != null",
-      ".write": "auth != null",
-      "$logId": {
-        ".validate": "newData.hasChildren(['action', 'timestamp'])",
-        "action": {
-          ".validate": "newData.isString() && newData.val().length <= 500"
-        },
-        "timestamp": {
-          ".validate": "newData.isNumber()"
-        },
-        "targetUserId": {
-          ".validate": "newData.isString()"
-        },
-        "carerId": {
-          ".validate": "newData.isString()"
-        },
-        "userId": {
-          ".validate": "newData.isString()"
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('caregiverAssignments').child(auth.uid).child($uid).exists() || auth.token.role === 'admin')",
+        ".write": "auth != null && (auth.uid === $uid || root.child('caregiverAssignments').child(auth.uid).child($uid).exists() || auth.token.role === 'admin')",
+        "$logId": {
+          ".validate": "newData.hasChildren(['action', 'timestamp'])",
+          "action": {
+            ".validate": "newData.isString() && newData.val().length <= 500"
+          },
+          "timestamp": {
+            ".validate": "newData.isNumber()"
+          },
+          "targetUserId": {
+            ".validate": "newData.isString()"
+          },
+          "carerId": {
+            ".validate": "newData.isString()"
+          },
+          "userId": {
+            ".validate": "newData.isString()"
+          }
         }
       }
     },
 
     "userSync": {
       "$userId": {
-        ".read": "auth != null",
+        ".read": "auth != null && (auth.uid === $userId || root.child('caregiverAssignments').child(auth.uid).child($userId).exists() || auth.token.role === 'admin')",
         ".write": "auth != null && (auth.uid === $userId || auth.token.role === 'admin')",
         "lastActivity": {
           ".validate": "newData.isNumber()"
@@ -73,14 +83,14 @@
 
     "customVocab": {
       "$uid": {
-        ".read": "auth != null",
+        ".read": "auth != null && (auth.uid === $uid || root.child('caregiverAssignments').child(auth.uid).child($uid).exists() || auth.token.role === 'admin')",
         ".write": "auth != null && (auth.uid === $uid || auth.token.role === 'admin')"
       }
     },
 
     "vocabRequests": {
       "$uid": {
-        ".read": "auth != null",
+        ".read": "auth != null && (auth.uid === $uid || root.child('caregiverAssignments').child(auth.uid).child($uid).exists() || auth.token.role === 'admin')",
         ".write": "auth != null && (auth.uid === $uid || auth.token.role === 'admin')"
       }
     },
@@ -93,7 +103,7 @@
     },
 
     "fineTuneMetrics": {
-      ".read": "auth != null",
+      ".read": "auth != null && auth.token.role === 'admin'",
       ".write": "auth != null && auth.token.role === 'admin'",
       "$metricId": {
         ".validate": "newData.hasChildren(['epoch'])",

@@ -13,6 +13,7 @@
 
 export const DB_PATHS = {
   USERS: 'users',
+  CAREGIVER_ASSIGNMENTS: 'caregiverAssignments',
   CAREGIVERS: 'caregivers',
   USER_LOGS: 'userLogs',
   USER_SYNC: 'userSync',
@@ -81,38 +82,43 @@ export const METRIC_FIELDS = {
 
 export const ACCESS_CONTROL = {
   users: {
-    read: 'any authenticated user',
+    read: 'self OR assigned caregiver OR admin (no collection-level read)',
     write: 'admin only (via auth.token.role)',
     caregiverId: 'admin OR caregiver self-assign (auth.uid === newData.val())',
     role: 'admin only; validated to enum [admin, caregiver]',
   },
+  caregiverAssignments: {
+    read: 'own assignments (auth.uid === $caregiverUid) OR admin',
+    write: 'admin only',
+    note: 'Source of truth for who a caregiver can access. Written atomically with users/{uid}/caregiverId.',
+  },
   caregivers: {
-    read: 'any authenticated user',
+    read: 'admin only',
     write: 'admin only',
   },
   userLogs: {
-    read: 'any authenticated user',
-    write: 'any authenticated user',
+    read: 'self OR assigned caregiver OR admin (per-user: /userLogs/{uid})',
+    write: 'self OR assigned caregiver OR admin',
     validation: 'must include action (string ≤500) and timestamp (number)',
   },
   userSync: {
-    read: 'any authenticated user',
-    write: 'self (auth.uid === $userId) OR admin',
+    read: 'self OR assigned caregiver OR admin',
+    write: 'self OR admin',
   },
   customVocab: {
-    read: 'any authenticated user',
-    write: 'self (auth.uid === $uid) OR admin',
+    read: 'self OR assigned caregiver OR admin',
+    write: 'self OR admin',
   },
   vocabRequests: {
-    read: 'any authenticated user',
-    write: 'self (auth.uid === $uid) OR admin',
+    read: 'self OR assigned caregiver OR admin',
+    write: 'self OR admin',
   },
   userSettings: {
-    read: 'self (auth.uid === $uid) OR admin',
-    write: 'self (auth.uid === $uid) OR admin',
+    read: 'self OR admin',
+    write: 'self OR admin',
   },
   fineTuneMetrics: {
-    read: 'any authenticated user',
+    read: 'admin only',
     write: 'admin only',
     validation: 'must include epoch (number)',
   },
