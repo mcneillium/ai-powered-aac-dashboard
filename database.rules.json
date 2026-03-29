@@ -71,6 +71,27 @@
       }
     },
 
+    "customVocab": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.uid === $uid || auth.token.role === 'admin')"
+      }
+    },
+
+    "vocabRequests": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.uid === $uid || auth.token.role === 'admin')"
+      }
+    },
+
+    "userSettings": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.role === 'admin')",
+        ".write": "auth != null && (auth.uid === $uid || auth.token.role === 'admin')"
+      }
+    },
+
     "fineTuneMetrics": {
       ".read": "auth != null",
       ".write": "auth != null && auth.token.role === 'admin'",

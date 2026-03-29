@@ -16,6 +16,9 @@ export const DB_PATHS = {
   CAREGIVERS: 'caregivers',
   USER_LOGS: 'userLogs',
   USER_SYNC: 'userSync',
+  CUSTOM_VOCAB: 'customVocab',
+  VOCAB_REQUESTS: 'vocabRequests',
+  USER_SETTINGS: 'userSettings',
   FINE_TUNE_METRICS: 'fineTuneMetrics',
 };
 
@@ -95,6 +98,18 @@ export const ACCESS_CONTROL = {
   userSync: {
     read: 'any authenticated user',
     write: 'self (auth.uid === $userId) OR admin',
+  },
+  customVocab: {
+    read: 'any authenticated user',
+    write: 'self (auth.uid === $uid) OR admin',
+  },
+  vocabRequests: {
+    read: 'any authenticated user',
+    write: 'self (auth.uid === $uid) OR admin',
+  },
+  userSettings: {
+    read: 'self (auth.uid === $uid) OR admin',
+    write: 'self (auth.uid === $uid) OR admin',
   },
   fineTuneMetrics: {
     read: 'any authenticated user',
