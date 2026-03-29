@@ -7,12 +7,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
-  Paper,
   Container,
   CircularProgress,
   Grid,
   Card,
   CardContent,
+  CardActionArea,
   Chip,
   Table,
   TableBody,
@@ -20,70 +20,184 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Paper,
   Button,
   Alert,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
 } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
+import TouchAppIcon from '@mui/icons-material/TouchApp';
+import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
+import ThumbUpIcon from '@mui/icons-material/ThumbUp';
+import SearchOffIcon from '@mui/icons-material/SearchOff';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import SyncIcon from '@mui/icons-material/Sync';
+import StarIcon from '@mui/icons-material/Star';
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import SyncStatusCard from '../components/SyncStatusCard';
 
 export default function CaregiverDashboard() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+
   const [assignedUsers, setAssignedUsers] = useState([]);
-  const [recentLogs, setRecentLogs] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userLogs, setUserLogs] = useState([]);
+  const [customVocab, setCustomVocab] = useState([]);
+  const [vocabRequests, setVocabRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Load assigned users
   useEffect(() => {
-    const caregiverId = currentUser?.uid;
-    if (!caregiverId) return;
+    const uid = currentUser?.uid;
+    if (!uid) return;
 
     const usersRef = ref(db, 'users');
-    const unsubscribe = onValue(usersRef, (snapshot) => {
-      const data = snapshot.val();
-      const filtered = data
-        ? Object.entries(data)
-            .filter(([, info]) => info.caregiverId === caregiverId)
-            .map(([uid, info]) => ({ uid, ...info }))
-        : [];
+    const unsub = onValue(usersRef, (snap) => {
+      const data = snap.val() || {};
+      const filtered = Object.entries(data)
+        .filter(([, info]) => info.caregiverId === uid)
+        .map(([id, info]) => ({ uid: id, ...info }));
       setAssignedUsers(filtered);
+      // Auto-select first user if none selected
+      if (filtered.length > 0 && !selectedUser) {
+        setSelectedUser(filtered[0]);
+      }
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
 
-  // Fetch recent logs for assigned users
+  // Load data for selected user
   useEffect(() => {
-    if (!assignedUsers.length) return;
-    const userIds = new Set(assignedUsers.map((u) => u.uid));
+    if (!selectedUser) return;
+    const uid = selectedUser.uid;
 
-    const logsQuery = query(
-      ref(db, 'userLogs'),
-      orderByChild('timestamp'),
-      limitToLast(50),
-    );
-    get(logsQuery).then((snap) => {
-      const data = snap.val() || {};
-      const arr = Object.entries(data)
-        .map(([id, v]) => ({ id, ...v }))
-        .filter((l) => userIds.has(l.targetUserId) || userIds.has(l.userId))
-        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-        .slice(0, 10);
-      setRecentLogs(arr);
-    }).catch(() => setRecentLogs([]));
-  }, [assignedUsers]);
+    // Logs: /userLogs/{uid}
+    const logsRef = ref(db, `userLogs/${uid}`);
+    get(query(logsRef, orderByChild('timestamp'), limitToLast(200)))
+      .then((snap) => {
+        const data = snap.val() || {};
+        const arr = Object.entries(data)
+          .map(([id, v]) => ({ id, ...v }))
+          .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        setUserLogs(arr);
+      })
+      .catch(() => setUserLogs([]));
 
-  const stats = useMemo(() => {
-    const now = Date.now();
-    const dayMs = 24 * 60 * 60 * 1000;
-    const todayLogs = recentLogs.filter((l) => now - l.timestamp < dayMs);
+    // Also try top-level userLogs filtered by this user (legacy flat structure)
+    // The mobile app may store logs at /userLogs (flat) with targetUserId/userId
+    const flatLogsRef = ref(db, 'userLogs');
+    get(query(flatLogsRef, orderByChild('timestamp'), limitToLast(500)))
+      .then((snap) => {
+        const data = snap.val() || {};
+        const arr = Object.entries(data)
+          .map(([id, v]) => ({ id, ...v }))
+          .filter((l) => l.targetUserId === uid || l.userId === uid)
+          .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        // Merge: use per-user logs if they exist, otherwise flat logs
+        setUserLogs((prev) => prev.length > 0 ? prev : arr);
+      })
+      .catch(() => {});
+
+    // Custom vocab: /customVocab/{uid}
+    const vocabRef = ref(db, `customVocab/${uid}`);
+    get(vocabRef)
+      .then((snap) => {
+        const data = snap.val();
+        if (Array.isArray(data)) {
+          setCustomVocab(data);
+        } else if (data && typeof data === 'object') {
+          setCustomVocab(Object.entries(data).map(([id, v]) =>
+            typeof v === 'string' ? { id, word: v } : { id, ...v }
+          ));
+        } else {
+          setCustomVocab([]);
+        }
+      })
+      .catch(() => setCustomVocab([]));
+
+    // Vocab requests: /vocabRequests/{uid}
+    const reqRef = ref(db, `vocabRequests/${uid}`);
+    get(reqRef)
+      .then((snap) => {
+        const data = snap.val();
+        if (data && typeof data === 'object') {
+          setVocabRequests(Object.entries(data).map(([id, v]) =>
+            typeof v === 'string' ? { id, word: v } : { id, ...v }
+          ));
+        } else {
+          setVocabRequests([]);
+        }
+      })
+      .catch(() => setVocabRequests([]));
+  }, [selectedUser]);
+
+  // Compute insights from logs
+  const insights = useMemo(() => {
+    if (!userLogs.length) {
+      return {
+        wordsTapped: 0, sentencesSpoken: 0, vocabSize: customVocab.length,
+        suggestionAcceptRate: 0, missingWords: [], frequentPhrases: [],
+        mostUsedWords: [], recentLogs: [],
+      };
+    }
+
+    let wordsTapped = 0;
+    let sentencesSpoken = 0;
+    let suggestionsShown = 0;
+    let suggestionsAccepted = 0;
+    const wordCounts = {};
+    const phraseCounts = {};
+    const missingSet = {};
+
+    for (const log of userLogs) {
+      const action = (log.action || '').toLowerCase();
+
+      if (action.includes('tap') || action.includes('button_press') || action.includes('word_select')) {
+        wordsTapped++;
+        const word = log.word || log.label || log.details || '';
+        if (word) wordCounts[word] = (wordCounts[word] || 0) + 1;
+      }
+
+      if (action.includes('sentence') || action.includes('speak') || action.includes('phrase')) {
+        sentencesSpoken++;
+        const phrase = log.phrase || log.sentence || log.details || '';
+        if (phrase) phraseCounts[phrase] = (phraseCounts[phrase] || 0) + 1;
+      }
+
+      if (action.includes('suggestion')) {
+        suggestionsShown++;
+        if (action.includes('accept')) suggestionsAccepted++;
+      }
+
+      if (action.includes('search') || action.includes('missing') || action.includes('not_found')) {
+        const term = log.searchTerm || log.word || log.details || '';
+        if (term) missingSet[term] = (missingSet[term] || 0) + 1;
+      }
+    }
+
+    const sortDesc = (obj) =>
+      Object.entries(obj).sort(([, a], [, b]) => b - a);
+
     return {
-      totalUsers: assignedUsers.length,
-      todayActivity: todayLogs.length,
+      wordsTapped,
+      sentencesSpoken,
+      vocabSize: customVocab.length,
+      suggestionAcceptRate: suggestionsShown > 0
+        ? Math.round((suggestionsAccepted / suggestionsShown) * 100)
+        : 0,
+      missingWords: sortDesc(missingSet).slice(0, 10),
+      frequentPhrases: sortDesc(phraseCounts).slice(0, 10),
+      mostUsedWords: sortDesc(wordCounts).slice(0, 15),
+      recentLogs: userLogs.slice(0, 20),
     };
-  }, [assignedUsers, recentLogs]);
+  }, [userLogs, customVocab]);
 
   if (loading) {
     return (
@@ -96,50 +210,13 @@ export default function CaregiverDashboard() {
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h4">My Dashboard</Typography>
+        <Typography variant="h4">Caregiver Dashboard</Typography>
         <Typography variant="body2" color="text.secondary">
-          Manage and monitor your assigned users
+          Monitor usage and vocabulary for your assigned users
         </Typography>
       </Box>
 
-      {/* Stats */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6} md={4}>
-          <Card>
-            <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <PeopleIcon sx={{ fontSize: 40, color: 'primary.main', opacity: 0.8 }} />
-              <Box>
-                <Typography variant="h4">{stats.totalUsers}</Typography>
-                <Typography variant="body2" color="text.secondary">Assigned Users</Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} md={4}>
-          <Card>
-            <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <TrendingUpIcon sx={{ fontSize: 40, color: 'success.main', opacity: 0.8 }} />
-              <Box>
-                <Typography variant="h4">{stats.todayActivity}</Typography>
-                <Typography variant="body2" color="text.secondary">Today's Activity</Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card sx={{ cursor: 'pointer' }} onClick={() => navigate('/connect-user')}>
-            <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <SyncIcon sx={{ fontSize: 40, color: 'secondary.main', opacity: 0.8 }} />
-              <Box>
-                <Typography variant="subtitle1" fontWeight={600}>Connect Users</Typography>
-                <Typography variant="body2" color="text.secondary">Assign unlinked users</Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Users list */}
+      {/* No users assigned */}
       {assignedUsers.length === 0 ? (
         <Alert severity="info" action={
           <Button color="inherit" size="small" onClick={() => navigate('/connect-user')}>
@@ -149,66 +226,282 @@ export default function CaregiverDashboard() {
           No users assigned yet. Connect to users to start monitoring their activity.
         </Alert>
       ) : (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          {assignedUsers.map((user) => (
-            <Grid item xs={12} sm={6} key={user.uid}>
-              <Paper sx={{ p: 2.5, borderRadius: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                  <Box>
-                    <Typography variant="subtitle1" fontWeight={600}>
-                      {user.name || 'Unnamed User'}
+        <>
+          {/* User selector */}
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+            Select user ({assignedUsers.length} assigned)
+          </Typography>
+          <Grid container spacing={1} sx={{ mb: 3 }}>
+            {assignedUsers.map((user) => (
+              <Grid item xs={6} sm={4} md={3} key={user.uid}>
+                <Card
+                  variant={selectedUser?.uid === user.uid ? 'elevation' : 'outlined'}
+                  sx={{
+                    borderColor: selectedUser?.uid === user.uid ? 'primary.main' : 'divider',
+                    borderWidth: selectedUser?.uid === user.uid ? 2 : 1,
+                  }}
+                >
+                  <CardActionArea onClick={() => setSelectedUser(user)} sx={{ p: 1.5 }}>
+                    <Typography variant="subtitle2" noWrap>
+                      {user.name || 'Unnamed'}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {user.email}
-                    </Typography>
-                  </Box>
-                  <Chip label="Active" size="small" color="success" variant="outlined" />
-                </Box>
-                <SyncStatusCard userId={user.uid} />
-              </Paper>
-            </Grid>
-          ))}
-        </Grid>
-      )}
+                    <SyncStatusCard userId={user.uid} compact />
+                  </CardActionArea>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
 
-      {/* Recent Activity */}
-      {recentLogs.length > 0 && (
-        <Paper sx={{ p: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="subtitle1" fontWeight={600}>Recent Activity</Typography>
-            <Button size="small" onClick={() => navigate('/logs')}>View All</Button>
-          </Box>
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>User</TableCell>
-                  <TableCell>Action</TableCell>
-                  <TableCell>When</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {recentLogs.map((log) => {
-                  const user = assignedUsers.find((u) => u.uid === (log.targetUserId || log.userId));
-                  return (
-                    <TableRow key={log.id} hover>
-                      <TableCell>{user?.name || user?.email || log.userId}</TableCell>
-                      <TableCell>
-                        <Chip label={log.action} size="small" variant="outlined" />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}
+          {selectedUser && (
+            <>
+              <Divider sx={{ mb: 3 }} />
+              <Typography variant="h5" sx={{ mb: 2 }}>
+                {selectedUser.name || selectedUser.email || 'User'}
+              </Typography>
+
+              {/* ── Usage overview cards ── */}
+              <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid item xs={6} sm={3}>
+                  <StatCard
+                    icon={<TouchAppIcon />}
+                    label="Words Tapped"
+                    value={insights.wordsTapped}
+                    color="primary.main"
+                  />
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <StatCard
+                    icon={<RecordVoiceOverIcon />}
+                    label="Sentences Spoken"
+                    value={insights.sentencesSpoken}
+                    color="success.main"
+                  />
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <StatCard
+                    icon={<MenuBookIcon />}
+                    label="Vocabulary Size"
+                    value={insights.vocabSize}
+                    color="info.main"
+                  />
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <StatCard
+                    icon={<ThumbUpIcon />}
+                    label="Suggestion Accept"
+                    value={`${insights.suggestionAcceptRate}%`}
+                    color="warning.main"
+                  />
+                </Grid>
+              </Grid>
+
+              {/* ── Vocabulary insights ── */}
+              <Grid container spacing={2} sx={{ mb: 3 }}>
+                {/* Missing / searched words */}
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 2, height: '100%' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <SearchOffIcon color="error" fontSize="small" />
+                      <Typography variant="subtitle1" fontWeight={600}>
+                        Missing Searched Words
+                      </Typography>
+                    </Box>
+                    {insights.missingWords.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">
+                        No missing words recorded yet.
+                      </Typography>
+                    ) : (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {insights.missingWords.map(([word, count]) => (
+                          <Chip
+                            key={word}
+                            label={`${word} (${count})`}
+                            size="small"
+                            color="error"
+                            variant="outlined"
+                          />
+                        ))}
+                      </Box>
+                    )}
+
+                    {/* Vocab requests */}
+                    {vocabRequests.length > 0 && (
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
+                          Vocab Requests
                         </Typography>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Paper>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {vocabRequests.slice(0, 15).map((req) => (
+                            <Chip
+                              key={req.id}
+                              label={req.word || req.term || req.id}
+                              size="small"
+                              variant="outlined"
+                            />
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+                  </Paper>
+                </Grid>
+
+                {/* Frequent phrases to promote */}
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 2, height: '100%' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <TrendingUpIcon color="success" fontSize="small" />
+                      <Typography variant="subtitle1" fontWeight={600}>
+                        Frequent Phrases to Promote
+                      </Typography>
+                    </Box>
+                    {insights.frequentPhrases.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">
+                        No phrase data yet. Usage patterns will appear here.
+                      </Typography>
+                    ) : (
+                      <List dense disablePadding>
+                        {insights.frequentPhrases.map(([phrase, count]) => (
+                          <ListItem key={phrase} disableGutters>
+                            <ListItemText
+                              primary={phrase}
+                              secondary={`Used ${count} time${count > 1 ? 's' : ''}`}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    )}
+                  </Paper>
+                </Grid>
+
+                {/* Most used words */}
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 2, height: '100%' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <StarIcon color="warning" fontSize="small" />
+                      <Typography variant="subtitle1" fontWeight={600}>
+                        Most Used Words
+                      </Typography>
+                    </Box>
+                    {insights.mostUsedWords.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">
+                        No word usage data yet.
+                      </Typography>
+                    ) : (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {insights.mostUsedWords.map(([word, count]) => (
+                          <Chip
+                            key={word}
+                            label={`${word} (${count})`}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
+                        ))}
+                      </Box>
+                    )}
+                  </Paper>
+                </Grid>
+
+                {/* Custom vocabulary list */}
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 2, height: '100%' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <FormatListBulletedIcon color="info" fontSize="small" />
+                      <Typography variant="subtitle1" fontWeight={600}>
+                        Custom Vocabulary ({customVocab.length})
+                      </Typography>
+                    </Box>
+                    {customVocab.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">
+                        No custom vocabulary added yet.
+                      </Typography>
+                    ) : (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {customVocab.slice(0, 30).map((item, i) => (
+                          <Chip
+                            key={item.id || i}
+                            label={item.word || item.label || item.text || String(item)}
+                            size="small"
+                            variant="outlined"
+                          />
+                        ))}
+                        {customVocab.length > 30 && (
+                          <Chip label={`+${customVocab.length - 30} more`} size="small" />
+                        )}
+                      </Box>
+                    )}
+                  </Paper>
+                </Grid>
+              </Grid>
+
+              {/* ── Recent activity log ── */}
+              <Paper sx={{ p: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="subtitle1" fontWeight={600}>
+                    Recent Activity
+                  </Typography>
+                  <Button size="small" onClick={() => navigate('/logs')}>
+                    View All Logs
+                  </Button>
+                </Box>
+                {insights.recentLogs.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    No activity recorded yet.
+                  </Typography>
+                ) : (
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Action</TableCell>
+                          <TableCell>Details</TableCell>
+                          <TableCell>When</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {insights.recentLogs.map((log) => (
+                          <TableRow key={log.id} hover>
+                            <TableCell>
+                              <Chip label={log.action || 'unknown'} size="small" variant="outlined" />
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 250 }}>
+                                {log.word || log.phrase || log.details || log.label || '—'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" color="text.secondary">
+                                {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Paper>
+            </>
+          )}
+        </>
       )}
     </Container>
+  );
+}
+
+// Small stat card component
+function StatCard({ icon, label, value, color }) {
+  return (
+    <Card>
+      <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1.5, '&:last-child': { pb: 1.5 } }}>
+        <Box sx={{ color, opacity: 0.8, display: 'flex' }}>
+          {React.cloneElement(icon, { sx: { fontSize: 36 } })}
+        </Box>
+        <Box>
+          <Typography variant="h5" fontWeight={700}>{value}</Typography>
+          <Typography variant="body2" color="text.secondary">{label}</Typography>
+        </Box>
+      </CardContent>
+    </Card>
   );
 }

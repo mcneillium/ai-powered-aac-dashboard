@@ -1,7 +1,8 @@
 // src/contexts/AuthContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
-import { auth } from '../firebaseConfig';
+import { ref, get } from 'firebase/database';
+import { auth, db } from '../firebaseConfig';
 
 const AuthContext = createContext();
 
@@ -23,15 +24,32 @@ export function AuthProvider({ children }) {
       if (user) {
         setCurrentUser(user);
 
-        // Role MUST come from Firebase custom claims (server-set, tamper-proof).
-        // Never trust client-writable database fields for authorization.
+        // 1. Try custom claims first (server-set, tamper-proof)
+        let role = null;
         try {
           const tokenResult = await user.getIdTokenResult();
-          setUserRole(tokenResult.claims.role || null);
+          role = tokenResult.claims.role || null;
         } catch (err) {
           console.error('Failed to fetch role from claims:', err);
-          setUserRole(null);
         }
+
+        // 2. Fall back to /users/{uid}/role in Realtime Database
+        //    This is where the mobile app stores the role.
+        if (!role) {
+          try {
+            const snap = await get(ref(db, `users/${user.uid}/role`));
+            if (snap.exists()) {
+              const dbRole = snap.val();
+              if (dbRole === ROLES.ADMIN || dbRole === ROLES.CAREGIVER) {
+                role = dbRole;
+              }
+            }
+          } catch (err) {
+            console.error('Failed to fetch role from database:', err);
+          }
+        }
+
+        setUserRole(role);
       } else {
         setCurrentUser(null);
         setUserRole(null);

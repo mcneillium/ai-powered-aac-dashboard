@@ -16,6 +16,11 @@ jest.mock('firebase/auth', () => ({
   signOut: jest.fn(() => Promise.resolve()),
 }));
 
+jest.mock('firebase/database', () => ({
+  ref: jest.fn(),
+  get: jest.fn(() => Promise.resolve({ exists: () => false, val: () => null })),
+}));
+
 import { AuthProvider, useAuth, ROLES } from '../src/contexts/AuthContext';
 
 function TestConsumer() {
@@ -39,7 +44,6 @@ describe('AuthContext', () => {
 
   test('provides auth context when wrapped in AuthProvider', () => {
     render(<AuthProvider><TestConsumer /></AuthProvider>);
-    // The component renders without throwing
     expect(screen.getByTestId('loading')).toBeInTheDocument();
     expect(screen.getByTestId('isAdmin')).toBeInTheDocument();
     expect(screen.getByTestId('isCaregiver')).toBeInTheDocument();
@@ -51,30 +55,28 @@ describe('AuthContext', () => {
     spy.mockRestore();
   });
 
-  test('does NOT import or use firebase/database for role resolution', () => {
-    // AuthContext must source roles from custom claims only, not the database.
-    // Verify the source file does not import database modules.
+  test('custom claims are checked first for role resolution', () => {
     const fs = require('fs');
     const source = fs.readFileSync(
       require('path').join(__dirname, '..', 'src', 'contexts', 'AuthContext.js'),
       'utf-8'
     );
-    expect(source).not.toContain('firebase/database');
-    expect(source).not.toContain('ref(db');
+    // Custom claims must be the primary role source
     expect(source).toContain('getIdTokenResult');
     expect(source).toContain('claims.role');
   });
 
-  test('role is sourced from custom claims, not database', () => {
+  test('database role is used as fallback when claims have no role', () => {
     const fs = require('fs');
     const source = fs.readFileSync(
       require('path').join(__dirname, '..', 'src', 'contexts', 'AuthContext.js'),
       'utf-8'
     );
-    // Must NOT contain the dangerous database fallback
-    expect(source).not.toContain("get(ref(db, `users/");
-    expect(source).not.toContain("snap.val()");
-    // Must contain the secure custom claims path
-    expect(source).toContain('tokenResult.claims.role');
+    // Database fallback reads /users/{uid}/role
+    expect(source).toContain('firebase/database');
+    expect(source).toContain('users/${user.uid}/role');
+    // Only accepts valid roles from database
+    expect(source).toContain('ROLES.ADMIN');
+    expect(source).toContain('ROLES.CAREGIVER');
   });
 });

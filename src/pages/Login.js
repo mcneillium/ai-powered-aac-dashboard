@@ -33,18 +33,10 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const userCredential = await signIn(email, password);
-      const user = userCredential.user;
-      const tokenResult = await user.getIdTokenResult();
-      const role = tokenResult.claims.role;
-
-      if (role === 'admin') {
-        navigate('/admin', { replace: true });
-      } else if (role === 'caregiver') {
-        navigate('/caregiver', { replace: true });
-      } else {
-        navigate('/home', { replace: true });
-      }
+      await signIn(email, password);
+      // AuthContext resolves the role (claims first, then /users/{uid}/role).
+      // Redirect to /home which will route based on the resolved role.
+      navigate('/home', { replace: true });
     } catch (err) {
       const messages = {
         'auth/user-not-found': 'No account found with this email.',

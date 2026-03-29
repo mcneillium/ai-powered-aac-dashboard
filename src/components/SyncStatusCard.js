@@ -6,7 +6,7 @@ import { db } from '../firebaseConfig';
 import SyncIcon from '@mui/icons-material/Sync';
 import SyncDisabledIcon from '@mui/icons-material/SyncDisabled';
 
-export default function SyncStatusCard({ userId }) {
+export default function SyncStatusCard({ userId, compact = false }) {
   const [lastActive, setLastActive] = useState(null);
 
   useEffect(() => {
@@ -26,6 +26,14 @@ export default function SyncStatusCard({ userId }) {
   }, [userId]);
 
   const isRecent = lastActive && (Date.now() - lastActive.getTime()) < 24 * 60 * 60 * 1000;
+
+  if (compact) {
+    return (
+      <Typography variant="caption" color={isRecent ? 'success.main' : 'text.secondary'}>
+        {lastActive ? (isRecent ? 'Active today' : lastActive.toLocaleDateString()) : 'No activity'}
+      </Typography>
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
