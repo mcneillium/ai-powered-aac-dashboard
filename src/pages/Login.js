@@ -66,11 +66,11 @@ export default function Login() {
           <Box sx={{ textAlign: 'center', mb: 3 }}>
             <img
               src={logo}
-              alt="CommAI"
+              alt="Voice"
               style={{ width: 80, height: 'auto', marginBottom: 12 }}
             />
             <Typography variant="h5" fontWeight={700} color="primary">
-              CommAI Dashboard
+              Voice Dashboard
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Sign in to manage your users

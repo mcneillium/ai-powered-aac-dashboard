@@ -66,9 +66,9 @@ export default function DashboardLayout({ children }) {
   const drawer = (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <img src={logo} alt="CommAI" style={{ width: 36, height: 36 }} />
+        <img src={logo} alt="Voice" style={{ width: 36, height: 36 }} />
         <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-          CommAI
+          Voice
         </Typography>
       </Box>
       <Divider />
@@ -139,9 +139,9 @@ export default function DashboardLayout({ children }) {
             >
               <MenuIcon />
             </IconButton>
-            <img src={logo} alt="CommAI" style={{ width: 28, height: 28, marginRight: 8 }} />
+            <img src={logo} alt="Voice" style={{ width: 28, height: 28, marginRight: 8 }} />
             <Typography variant="h6" noWrap sx={{ fontWeight: 700 }}>
-              CommAI
+              Voice
             </Typography>
           </Toolbar>
         </AppBar>

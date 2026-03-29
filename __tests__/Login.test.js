@@ -51,9 +51,9 @@ describe('Login', () => {
     expect(passwordInput.value).toBe('password123');
   });
 
-  test('displays CommAI branding', () => {
+  test('displays Voice branding', () => {
     renderLogin();
-    expect(screen.getByText('CommAI Dashboard')).toBeInTheDocument();
+    expect(screen.getByText('Voice Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Sign in to manage your users')).toBeInTheDocument();
   });
 

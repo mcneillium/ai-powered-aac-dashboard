@@ -76,7 +76,7 @@ export default function Signup() {
       <Container maxWidth="xs">
         <Paper sx={{ p: 4 }}>
           <Box sx={{ textAlign: 'center', mb: 3 }}>
-            <img src={logo} alt="CommAI" style={{ width: 80, height: 'auto', marginBottom: 12 }} />
+            <img src={logo} alt="Voice" style={{ width: 80, height: 'auto', marginBottom: 12 }} />
             <Typography variant="h5" fontWeight={700} color="primary">
               Create Account
             </Typography>

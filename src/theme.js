@@ -4,15 +4,15 @@ import { createTheme } from '@mui/material/styles';
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#2E7D32',       // CommAI green
-      light: '#4CAF50',
-      dark: '#1B5E20',
+      main: '#2979FF',       // Voice blue
+      light: '#5393FF',
+      dark: '#1565C0',
       contrastText: '#fff',
     },
     secondary: {
-      main: '#1565C0',       // Blue accent
-      light: '#42A5F5',
-      dark: '#0D47A1',
+      main: '#2E7D32',       // Green accent
+      light: '#4CAF50',
+      dark: '#1B5E20',
     },
     background: {
       default: '#F5F7FA',
