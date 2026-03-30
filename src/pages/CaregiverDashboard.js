@@ -5,7 +5,7 @@ import { db } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, Container, CircularProgress, Grid, Card, CardContent,
+  Box, Typography, Container, Grid, Card, CardContent,
   CardActionArea, Chip, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Button, Alert, Divider, List, ListItem,
   ListItemText, IconButton, Tooltip, Skeleton, Snackbar, TextField,
@@ -37,14 +37,12 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ChartTit
 
 const DAY_MS = 86400000;
 
-function startOfDay(ts) {
-  const d = new Date(ts);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
 function toDateInputValue(ts) {
   return new Date(ts).toISOString().split('T')[0];
+}
+
+function safeName(name) {
+  return (name || 'user').replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
 // ── Section wrapper ─────────────────────────────────────────────────────────
@@ -283,8 +281,12 @@ export default function CaregiverDashboard() {
 
   // ── CSV export helpers ────────────────────────────────────────────────────
 
+  const dateLabel = dateRange === 'custom'
+    ? `${customFrom || 'start'}_to_${customTo || 'now'}`
+    : dateRange;
+
   const exportLogs = () => {
-    const userName = selectedUser?.name || 'user';
+    const name = safeName(selectedUser?.name);
     const rows = filteredLogs.map((l) => ({
       date: l.timestamp ? new Date(l.timestamp).toISOString() : '',
       action: l.action || '',
@@ -292,20 +294,23 @@ export default function CaregiverDashboard() {
       phrase: l.phrase || l.sentence || '',
       details: l.details || '',
     }));
-    downloadCSV(rows, `${userName}-activity-logs`, ['date', 'action', 'word', 'phrase', 'details']);
+    downloadCSV(rows, `${name}-activity-${dateLabel}`, ['date', 'action', 'word', 'phrase', 'details']);
     toast('Activity logs exported');
   };
 
   const exportVocab = () => {
-    const userName = selectedUser?.name || 'user';
+    const name = safeName(selectedUser?.name);
     const rows = customVocab.map((v) => ({ word: v.word || v.label || v.text || '' }));
-    downloadCSV(rows, `${userName}-vocabulary`, ['word']);
+    downloadCSV(rows, `${name}-vocabulary`, ['word']);
     toast('Vocabulary exported');
   };
 
   const exportInsights = () => {
-    const userName = selectedUser?.name || 'user';
+    const name = safeName(selectedUser?.name);
     const rows = [];
+    rows.push({ category: 'Report', item: 'User', value: selectedUser?.name || '' });
+    rows.push({ category: 'Report', item: 'Date Range', value: dateLabel });
+    rows.push({ category: 'Report', item: 'Generated', value: new Date().toISOString() });
     rows.push({ category: 'Summary', item: 'Words Tapped', value: insights.wordsTapped });
     rows.push({ category: 'Summary', item: 'Sentences Spoken', value: insights.sentencesSpoken });
     rows.push({ category: 'Summary', item: 'Vocabulary Size', value: insights.vocabSize });
@@ -314,7 +319,7 @@ export default function CaregiverDashboard() {
     for (const [phrase, count] of insights.frequentPhrases) rows.push({ category: 'Frequent Phrases', item: phrase, value: count });
     for (const [word, count] of insights.missingWords) rows.push({ category: 'Missing Words', item: word, value: count });
     for (const req of vocabRequests) rows.push({ category: 'Vocab Requests', item: req.word || req.term || '', value: '' });
-    downloadCSV(rows, `${userName}-insights-report`, ['category', 'item', 'value']);
+    downloadCSV(rows, `${name}-insights-${dateLabel}`, ['category', 'item', 'value']);
     toast('Insights report exported');
   };
 
