@@ -30,19 +30,14 @@ export default function UserActions() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
   useEffect(() => {
-    const logsRef = ref(db, 'userLogs');
+    // Read per-user logs: /userLogs/{userId}
+    const logsRef = ref(db, `userLogs/${userId}`);
     const unsubscribe = onValue(logsRef, (snapshot) => {
       const data = snapshot.val() || {};
-      const filteredLogs = Object.entries(data)
+      const sorted = Object.entries(data)
         .map(([id, log]) => ({ id, ...log }))
-        .filter((log) => {
-          if (log.targetUserId !== undefined) {
-            return log.targetUserId === userId;
-          }
-          return log.userId === userId;
-        })
         .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-      setLogs(filteredLogs);
+      setLogs(sorted);
       setLoading(false);
     });
     return () => unsubscribe();

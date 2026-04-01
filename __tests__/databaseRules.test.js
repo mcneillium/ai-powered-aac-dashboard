@@ -38,9 +38,9 @@ describe('database.rules.json structure', () => {
   });
 });
 
-describe('no broad collection-level reads', () => {
-  test('/users has NO collection-level .read', () => {
-    expect(rules.rules.users['.read']).toBeUndefined();
+describe('collection-level reads restricted to admin', () => {
+  test('/users collection .read requires admin', () => {
+    expect(rules.rules.users['.read']).toContain("auth.token.role === 'admin'");
   });
 
   test('/users/$uid requires self OR assignment OR admin', () => {
@@ -55,8 +55,8 @@ describe('no broad collection-level reads', () => {
     expect(rule).toContain("auth.token.role === 'admin'");
   });
 
-  test('/userLogs has NO collection-level .read', () => {
-    expect(rules.rules.userLogs['.read']).toBeUndefined();
+  test('/userLogs collection .read requires admin', () => {
+    expect(rules.rules.userLogs['.read']).toContain("auth.token.role === 'admin'");
   });
 
   test('/fineTuneMetrics requires admin', () => {

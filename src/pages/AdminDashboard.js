@@ -114,12 +114,19 @@ export default function AdminDashboard() {
   }, []);
 
   const fetchLogs = useCallback(async () => {
-    const snap = await get(
-      query(ref(db, 'userLogs'), orderByChild('timestamp'), limitToLast(500))
-    );
-    return Object.entries(snap.val() || {})
-      .map(([id, v]) => ({ id, ...v }))
-      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    // userLogs is per-user: /userLogs/{uid}/{logId}
+    const snap = await get(ref(db, 'userLogs'));
+    const perUser = snap.val() || {};
+    const all = [];
+    for (const [uid, logs] of Object.entries(perUser)) {
+      if (logs && typeof logs === 'object') {
+        for (const [id, v] of Object.entries(logs)) {
+          all.push({ id, ownerUid: uid, ...v });
+        }
+      }
+    }
+    all.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    return all.slice(0, 500);
   }, []);
 
   const refreshAll = useCallback(async () => {

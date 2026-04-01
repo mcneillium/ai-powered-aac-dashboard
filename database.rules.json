@@ -1,6 +1,7 @@
 {
   "rules": {
     "users": {
+      ".read": "auth != null && auth.token.role === 'admin'",
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || root.child('caregiverAssignments').child(auth.uid).child($uid).exists() || auth.token.role === 'admin')",
         ".write": "auth != null && auth.token.role === 'admin'",
@@ -47,6 +48,7 @@
     },
 
     "userLogs": {
+      ".read": "auth != null && auth.token.role === 'admin'",
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || root.child('caregiverAssignments').child(auth.uid).child($uid).exists() || auth.token.role === 'admin')",
         ".write": "auth != null && (auth.uid === $uid || root.child('caregiverAssignments').child(auth.uid).child($uid).exists() || auth.token.role === 'admin')",

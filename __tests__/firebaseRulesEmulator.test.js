@@ -25,12 +25,12 @@ describe('Firebase Rules — Access Model', () => {
     });
   });
 
-  describe('No collection-level reads for non-admins', () => {
-    test('/users has no collection .read', () => {
-      expect(rules.rules.users['.read']).toBeUndefined();
+  describe('Collection reads restricted to admin', () => {
+    test('/users collection .read requires admin', () => {
+      expect(rules.rules.users['.read']).toContain("auth.token.role === 'admin'");
     });
-    test('/userLogs has no collection .read', () => {
-      expect(rules.rules.userLogs['.read']).toBeUndefined();
+    test('/userLogs collection .read requires admin', () => {
+      expect(rules.rules.userLogs['.read']).toContain("auth.token.role === 'admin'");
     });
     test('/caregivers .read requires admin', () => {
       expect(rules.rules.caregivers['.read']).toContain("auth.token.role === 'admin'");
