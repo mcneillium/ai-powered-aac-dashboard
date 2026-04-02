@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@babel/core": "^7.29.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^6.4.11",
@@ -13,10 +14,10 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^13.5.0",
+    "ajv": "^8.18.0",
     "chart.js": "^4.4.9",
     "date-fns": "^4.1.0",
     "firebase": "^11.3.1",
-    "firebase-admin": "^13.4.0",
     "papaparse": "^5.5.2",
     "react": "^18.2.0",
     "react-chartjs-2": "^5.3.0",
@@ -26,15 +27,7 @@
     "react-router-dom": "^7.2.0",
     "react-scripts": "^5.0.1",
     "recharts": "^2.15.3",
-    "web-vitals": "^2.1.4",
-
-    "@tensorflow/tfjs": "4.22.0",
-    "@tensorflow/tfjs-core": "4.22.0",
-    "@tensorflow/tfjs-layers": "4.22.0",
-    "@tensorflow/tfjs-converter": "4.22.0",
-    "@tensorflow/tfjs-backend-webgl": "4.22.0",
-    "@tensorflow/tfjs-backend-wasm": "4.22.0",
-    "@tensorflow/tfjs-backend-cpu": "4.22.0"
+    "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "craco start",
@@ -44,23 +37,26 @@
     "clean": "rimraf node_modules package-lock.json && npm install"
   },
   "eslintConfig": {
-    "extends": ["react-app", "react-app/jest"]
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
   },
   "browserslist": {
-    "production": [">0.2%", "not dead", "not op_mini all"],
-    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   },
   "devDependencies": {
     "@craco/craco": "^7.1.0",
     "rimraf": "^5.0.5"
   },
-  "overrides": {
-    "@tensorflow/tfjs": "4.22.0",
-    "@tensorflow/tfjs-core": "4.22.0",
-    "@tensorflow/tfjs-layers": "4.22.0",
-    "@tensorflow/tfjs-converter": "4.22.0",
-    "@tensorflow/tfjs-backend-webgl": "4.22.0",
-    "@tensorflow/tfjs-backend-wasm": "4.22.0",
-    "@tensorflow/tfjs-backend-cpu": "4.22.0"
-  }
+  "overrides": {}
 }
