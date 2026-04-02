@@ -3,7 +3,6 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import PrivateRoute from './PrivateRoute';
 import Login from './pages/Login';
-import Signup from './pages/Signup';
 import Home from './pages/Home';
 import CaregiverDashboard from './pages/CaregiverDashboard';
 import Caregivers from './pages/Caregivers';
@@ -23,65 +22,29 @@ function App() {
           {/* Public */}
           <Route path="/" element={<Login />} />
           <Route path="/login"  element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
           <Route path="/home"   element={<Home />} />
 
-          {/* Protected */}
+          {/* Admin-only routes */}
           <Route
             path="/admin"
             element={
-              <PrivateRoute>
+              <PrivateRoute requiredRole="admin">
                 <AdminDashboard />
               </PrivateRoute>
             }
           />
-
-          {/* Caregiver dashboard route */}
-          <Route
-            path="/caregiver"
-            element={
-              <PrivateRoute>
-                <CaregiverDashboard />
-              </PrivateRoute>
-            }
-          />
-
           <Route
             path="/caregivers"
             element={
-              <PrivateRoute>
+              <PrivateRoute requiredRole="admin">
                 <Caregivers />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/connect-user"
-            element={
-              <PrivateRoute>
-                <ConnectUser />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/finetune-metrics"
-            element={
-              <PrivateRoute>
-                <FineTuneMetrics />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/logs"
-            element={
-              <PrivateRoute>
-                <Logs />
               </PrivateRoute>
             }
           />
           <Route
             path="/user-management"
             element={
-              <PrivateRoute>
+              <PrivateRoute requiredRole="admin">
                 <UserManagement />
               </PrivateRoute>
             }
@@ -89,8 +52,42 @@ function App() {
           <Route
             path="/user-actions/:userId"
             element={
-              <PrivateRoute>
+              <PrivateRoute requiredRole="admin">
                 <UserActions />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/logs"
+            element={
+              <PrivateRoute requiredRole="admin">
+                <Logs />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/finetune-metrics"
+            element={
+              <PrivateRoute requiredRole="admin">
+                <FineTuneMetrics />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/connect-user"
+            element={
+              <PrivateRoute requiredRole="admin">
+                <ConnectUser />
+              </PrivateRoute>
+            }
+          />
+
+          {/* Caregiver route (any authenticated user) */}
+          <Route
+            path="/caregiver"
+            element={
+              <PrivateRoute>
+                <CaregiverDashboard />
               </PrivateRoute>
             }
           />

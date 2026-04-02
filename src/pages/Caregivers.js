@@ -71,7 +71,7 @@ export default function Caregivers() {
       auth.currentUser.getIdTokenResult()
         .then((idTokenResult) => {
           setIsAdmin(idTokenResult.claims.role === 'admin');
-          console.log('User claims:', idTokenResult.claims);
+          // claims loaded
         })
         .catch((error) => {
           console.error('Error fetching token claims:', error);

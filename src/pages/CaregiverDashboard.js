@@ -50,14 +50,25 @@ export default function CaregiverDashboard() {
       <Typography variant="h4" fontWeight="bold" gutterBottom>
         Caregiver Dashboard
       </Typography>
-      {assignedUsers.map((user) => (
-        <Paper key={user.uid} sx={{ mb: 3, p: 2, borderRadius: 2, backgroundColor: '#f1f8e9' }}>
-          <Typography variant="subtitle1" fontWeight={600}>
-            {user.email}
+      {assignedUsers.length === 0 ? (
+        <Paper sx={{ p: 4, textAlign: 'center', backgroundColor: '#f5f5f5', borderRadius: 2 }}>
+          <Typography variant="h6" color="text.secondary">
+            No assigned users
           </Typography>
-          <SyncStatusCard userId={user.uid} />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            You don't have any users assigned to you yet. Please contact your administrator.
+          </Typography>
         </Paper>
-      ))}
+      ) : (
+        assignedUsers.map((user) => (
+          <Paper key={user.uid} sx={{ mb: 3, p: 2, borderRadius: 2, backgroundColor: '#f1f8e9' }}>
+            <Typography variant="subtitle1" fontWeight={600}>
+              {user.email}
+            </Typography>
+            <SyncStatusCard userId={user.uid} />
+          </Paper>
+        ))
+      )}
     </Container>
   );
 }

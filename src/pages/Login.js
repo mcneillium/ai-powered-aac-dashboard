@@ -81,9 +81,7 @@ export default function Login() {
             Log In
           </Button>
         )}
-        <Button fullWidth sx={{ mt: 2 }} onClick={() => navigate('/Signup')}>
-          Don't have an account? Sign Up
-        </Button>
+        {/* Account creation is managed by administrators */}
       </Box>
     </Container>
   );

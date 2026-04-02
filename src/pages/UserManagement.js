@@ -136,24 +136,6 @@ export default function UserManagement() {
     });
   };
 
-  // Dummy users for testing
-  const addDummyUsers = async () => {
-    const dummyUsers = [
-      { name: 'Alice', email: 'alice@example.com', caregiverId: 'carer123' },
-      { name: 'Bob', email: 'bob@example.com', caregiverId: 'carer123' },
-      { name: 'Charlie', email: 'charlie@example.com', caregiverId: 'carer456' }
-    ];
-    try {
-      for (const user of dummyUsers) {
-        await push(ref(db, 'users/'), user);
-      }
-      toast.success('Dummy users added.');
-    } catch (error) {
-      console.error('Error adding dummy users:', error);
-      toast.error('Error adding dummy users.');
-    }
-  };
-
   // Assign caregiver from the dropdown for a user
   const handleAssignCaregiverToUser = async (userId, caregiverId) => {
     try {
@@ -225,13 +207,6 @@ export default function UserManagement() {
             Upload CSV
           </Button>
         </Box>
-      </Box>
-
-      {/* Dummy Users Button */}
-      <Box sx={{ mb: 4 }}>
-        <Button variant="outlined" onClick={addDummyUsers}>
-          Add Dummy Users
-        </Button>
       </Box>
 
       {/* Search Field */}

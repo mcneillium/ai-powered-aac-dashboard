@@ -8,30 +8,35 @@ const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [isAdmin, setIsAdmin]         = useState(false);
+  const [role, setRole]               = useState(null);
   const [loading, setLoading]         = useState(true);
+
+  const isAdmin = role === 'admin';
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async user => {
       if (user) {
-        // ALWAYS set the Firebase user object
         setCurrentUser(user);
 
-        // THEN fetch their role from your database:
+        // Check custom claims first (set via Firebase Admin SDK), fall back to DB
         try {
-          const snap = await get(ref(db, `users/${user.uid}/role`));
-          const role = snap.val();
-          setIsAdmin(role === 'admin');
+          const tokenResult = await user.getIdTokenResult();
+          const claimRole = tokenResult.claims.role;
+          if (claimRole) {
+            setRole(claimRole);
+          } else {
+            const snap = await get(ref(db, `users/${user.uid}/role`));
+            setRole(snap.val() || 'caregiver');
+          }
         } catch (err) {
           console.error('Failed to fetch role:', err);
-          setIsAdmin(false);
+          setRole(null);
         }
       } else {
         setCurrentUser(null);
-        setIsAdmin(false);
+        setRole(null);
       }
 
-      // Now that we've done both steps, loading is done
       setLoading(false);
     });
 
@@ -45,7 +50,7 @@ export function AuthProvider({ children }) {
     fbSignOut(auth);
 
   return (
-    <AuthContext.Provider value={{ currentUser, isAdmin, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ currentUser, role, isAdmin, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
