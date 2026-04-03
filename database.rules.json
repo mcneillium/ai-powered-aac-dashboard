@@ -1,0 +1,29 @@
+{
+  "rules": {
+    "users": {
+      ".read": "auth != null",
+      ".write": "root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      "$uid": {
+        ".read": "auth != null"
+      }
+    },
+    "caregivers": {
+      ".read": "auth != null",
+      ".write": "root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+    "userLogs": {
+      ".read": "auth != null",
+      ".write": false
+    },
+    "userSync": {
+      "$userId": {
+        ".read": "auth != null"
+      },
+      ".write": false
+    },
+    "fineTuneMetrics": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".write": false
+    }
+  }
+}
