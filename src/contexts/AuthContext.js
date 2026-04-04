@@ -14,23 +14,34 @@ export function AuthProvider({ children }) {
   const isAdmin = role === 'admin';
 
   useEffect(() => {
+    // Safety timeout — if auth never resolves, stop loading after 5s
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 5000);
+
     const unsubscribe = onAuthStateChanged(auth, async user => {
+      clearTimeout(timeout);
+
       if (user) {
         setCurrentUser(user);
 
-        // Check custom claims first (set via Firebase Admin SDK), fall back to DB
         try {
           const tokenResult = await user.getIdTokenResult();
           const claimRole = tokenResult.claims.role;
           if (claimRole) {
             setRole(claimRole);
           } else {
-            const snap = await get(ref(db, `users/${user.uid}/role`));
+            // DB lookup with its own timeout
+            const dbPromise = get(ref(db, `users/${user.uid}/role`));
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('DB role lookup timed out')), 5000)
+            );
+            const snap = await Promise.race([dbPromise, timeoutPromise]);
             setRole(snap.val() || 'caregiver');
           }
         } catch (err) {
           console.error('Failed to fetch role:', err);
-          setRole(null);
+          setRole('caregiver');
         }
       } else {
         setCurrentUser(null);
@@ -40,7 +51,10 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      clearTimeout(timeout);
+      unsubscribe();
+    };
   }, []);
 
   const signIn = (email, pwd) =>
