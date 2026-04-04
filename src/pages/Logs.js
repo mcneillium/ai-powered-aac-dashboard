@@ -20,7 +20,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Logs() {
-  const { currentUser: user, isAdmin, loading: authLoading } = useAuth();
+  const { currentUser: user, isAdmin, authReady, roleLoading } = useAuth();
   const [logs, setLogs] = useState([]);
   const [linkedUserIds, setLinkedUserIds] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,8 +28,7 @@ export default function Logs() {
   // For caregivers: fetch linked user IDs once
   useEffect(() => {
     if (!isAdmin) {
-      // wait until authLoading is false
-      if (authLoading || !user) return;
+      if (!authReady || !user) return;
       get(ref(db, 'users'))
         .then(snap => {
           const data = snap.val() || {};
@@ -42,11 +41,10 @@ export default function Logs() {
           setLinkedUserIds([]);
         });
     }
-  }, [user, isAdmin, authLoading]);
+  }, [user, isAdmin, authReady]);
 
   const fetchLogs = useCallback(() => {
-    // Admins fetch immediately; caregivers wait until authLoading & linked IDs ready
-    if (!isAdmin && (authLoading || !user)) return;
+    if (!isAdmin && (!authReady || !user)) return;
     setLoading(true);
 
     const logsQuery = query(
@@ -71,14 +69,14 @@ export default function Logs() {
       .finally(() => {
         setLoading(false);
       });
-  }, [isAdmin, authLoading, user, linkedUserIds]);
+  }, [isAdmin, authReady, user, linkedUserIds]);
 
   // Fetch on mount and whenever linkedUserIds updates
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
 
-  if ((authLoading && !isAdmin) || loading) {
+  if (!authReady || loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
         <CircularProgress />

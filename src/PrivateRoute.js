@@ -5,30 +5,33 @@ import { useAuth } from './contexts/AuthContext';
 import { Box, CircularProgress } from '@mui/material';
 
 export default function PrivateRoute({ children, requiredRole }) {
-  const { currentUser, role, loading } = useAuth();
+  const { currentUser, role, authReady, roleLoading } = useAuth();
 
-  if (loading) {
+  // Wait for Firebase Auth to resolve
+  if (!authReady) {
     return (
-      <Box
-        sx={{
-          height: '100vh',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}
-      >
+      <Box sx={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <CircularProgress />
       </Box>
     );
   }
 
+  // Not logged in
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
 
-  // If a specific role is required, enforce it
+  // Logged in but role still loading
+  if (roleLoading) {
+    return (
+      <Box sx={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // Role enforcement
   if (requiredRole && role !== requiredRole) {
-    // Redirect non-admin users away from admin pages
     if (requiredRole === 'admin') {
       return <Navigate to="/caregiver" replace />;
     }

@@ -9,21 +9,17 @@ const AuthContext = createContext();
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [role, setRole]               = useState(null);
-  const [loading, setLoading]         = useState(true);
+  const [authReady, setAuthReady]     = useState(false);  // true once onAuthStateChanged fires
+  const [roleLoading, setRoleLoading] = useState(false);  // true only while fetching role
 
   const isAdmin = role === 'admin';
 
   useEffect(() => {
-    // Safety timeout — if auth never resolves, stop loading after 5s
-    const timeout = setTimeout(() => {
-      setLoading(false);
-    }, 5000);
-
     const unsubscribe = onAuthStateChanged(auth, async user => {
-      clearTimeout(timeout);
-
       if (user) {
         setCurrentUser(user);
+        setAuthReady(true);       // auth resolved — public routes can render now
+        setRoleLoading(true);     // start role fetch
 
         try {
           const tokenResult = await user.getIdTokenResult();
@@ -31,10 +27,9 @@ export function AuthProvider({ children }) {
           if (claimRole) {
             setRole(claimRole);
           } else {
-            // DB lookup with its own timeout
             const dbPromise = get(ref(db, `users/${user.uid}/role`));
             const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('DB role lookup timed out')), 5000)
+              setTimeout(() => reject(new Error('Role lookup timed out')), 5000)
             );
             const snap = await Promise.race([dbPromise, timeoutPromise]);
             setRole(snap.val() || 'caregiver');
@@ -43,18 +38,17 @@ export function AuthProvider({ children }) {
           console.error('Failed to fetch role:', err);
           setRole('caregiver');
         }
+
+        setRoleLoading(false);    // role resolved — private routes can render now
       } else {
         setCurrentUser(null);
         setRole(null);
+        setAuthReady(true);       // auth resolved — no user
+        setRoleLoading(false);
       }
-
-      setLoading(false);
     });
 
-    return () => {
-      clearTimeout(timeout);
-      unsubscribe();
-    };
+    return unsubscribe;
   }, []);
 
   const signIn = (email, pwd) =>
@@ -64,7 +58,7 @@ export function AuthProvider({ children }) {
     fbSignOut(auth);
 
   return (
-    <AuthContext.Provider value={{ currentUser, role, isAdmin, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ currentUser, role, isAdmin, authReady, roleLoading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
