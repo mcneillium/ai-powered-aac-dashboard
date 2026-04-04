@@ -10,8 +10,8 @@ const firebaseConfig = {
   databaseURL: 'https://commai-b98fe-default-rtdb.europe-west1.firebasedatabase.app',
   projectId: 'commai-b98fe',
   storageBucket: 'commai-b98fe.appspot.com',
-  messagingSenderId: '...',
-  appId: '...'
+  messagingSenderId: '419619126158',
+  appId: '1:419619126158:web:202d9bdfbab0878fbdc2df'
 };
 
 const app = initializeApp(firebaseConfig);
