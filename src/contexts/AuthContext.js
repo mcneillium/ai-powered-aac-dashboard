@@ -12,16 +12,22 @@ export function AuthProvider({ children }) {
   const [userRole, setUserRole] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isCaregiver, setIsCaregiver] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
+  const [roleLoading, setRoleLoading] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async user => {
       if (user) {
         setCurrentUser(user);
+        setAuthReady(true);
+        setRoleLoading(true);
 
-        // Read role from database (single source of truth)
         try {
-          const snap = await get(ref(db, `users/${user.uid}/role`));
+          const dbPromise = get(ref(db, `users/${user.uid}/role`));
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Role lookup timed out')), 5000)
+          );
+          const snap = await Promise.race([dbPromise, timeoutPromise]);
           const role = snap.val();
           setUserRole(role);
           setIsAdmin(role === ROLES.ADMIN);
@@ -32,14 +38,16 @@ export function AuthProvider({ children }) {
           setIsAdmin(false);
           setIsCaregiver(false);
         }
+
+        setRoleLoading(false);
       } else {
         setCurrentUser(null);
         setUserRole(null);
         setIsAdmin(false);
         setIsCaregiver(false);
+        setAuthReady(true);
+        setRoleLoading(false);
       }
-
-      setLoading(false);
     });
 
     return unsubscribe;
@@ -54,11 +62,13 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       currentUser,
-      user: currentUser,   // alias for compatibility with Logs.js
+      user: currentUser,
       userRole,
       isAdmin,
       isCaregiver,
-      loading,
+      authReady,
+      roleLoading,
+      loading: !authReady || roleLoading,
       signIn,
       signOut
     }}>

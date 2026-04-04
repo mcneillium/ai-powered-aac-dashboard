@@ -5,28 +5,27 @@ import { useAuth } from './contexts/AuthContext';
 import { Box, CircularProgress } from '@mui/material';
 
 export default function PrivateRoute({ children }) {
-  const { currentUser, loading } = useAuth();
+  const { currentUser, authReady, roleLoading } = useAuth();
 
-  if (loading) {
-    // still initializing auth → show spinner
+  if (!authReady) {
     return (
-      <Box
-        sx={{
-          height: '100vh',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}
-      >
+      <Box sx={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <CircularProgress />
       </Box>
     );
   }
 
-  return currentUser ? (
-    children
-  ) : (
-    // not logged in → redirect to login
-    <Navigate to="/login" replace />
-  );
+  if (!currentUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (roleLoading) {
+    return (
+      <Box sx={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  return children;
 }
