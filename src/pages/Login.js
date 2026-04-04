@@ -13,7 +13,7 @@ import {
   Link
 } from '@mui/material';
 import { toast } from 'react-hot-toast';
-import { ref, get } from 'firebase/database';
+import { ref, get, set } from 'firebase/database';
 import { db } from '../firebaseConfig';
 import { ROLES } from '../shared/schema';
 
@@ -37,9 +37,25 @@ export default function Login() {
       const userCredential = await signIn(email, password);
       const user = userCredential.user;
 
-      // Read role from database (single source of truth)
-      const snap = await get(ref(db, `users/${user.uid}/role`));
-      const role = snap.val();
+      // Read role from database
+      const roleSnap = await get(ref(db, `users/${user.uid}/role`));
+      let role = roleSnap.val();
+
+      // If no role exists, bootstrap the user record
+      if (!role) {
+        // Check if any users exist at all — first user becomes admin
+        const usersSnap = await get(ref(db, 'users'));
+        const isFirstUser = !usersSnap.exists() || !usersSnap.val();
+        role = isFirstUser ? ROLES.ADMIN : ROLES.CAREGIVER;
+
+        await set(ref(db, `users/${user.uid}`), {
+          email: user.email,
+          name: user.displayName || user.email,
+          role: role,
+          createdAt: Date.now()
+        });
+        toast.success(`Account set up as ${role}`);
+      }
 
       if (role === ROLES.ADMIN) {
         toast.success('Logged in successfully');
@@ -48,8 +64,9 @@ export default function Login() {
         toast.success('Logged in successfully');
         navigate('/caregiver', { replace: true });
       } else {
-        setError('This dashboard is for caregivers and administrators only.');
-        return;
+        // Any other role (e.g. 'user') — treat as caregiver
+        toast.success('Logged in successfully');
+        navigate('/caregiver', { replace: true });
       }
     } catch (err) {
       const msg = err.code === 'auth/invalid-credential'
@@ -60,12 +77,6 @@ export default function Login() {
       setError(msg);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !loading) {
-      handleLogin();
     }
   };
 
