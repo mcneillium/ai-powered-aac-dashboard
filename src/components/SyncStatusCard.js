@@ -1,7 +1,8 @@
-// src/components/SyncStatusCard.js
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, Chip } from '@mui/material';
-import { getDatabase, ref, onValue } from 'firebase/database';
+import { ref, onValue, off } from 'firebase/database';
+import { db } from '../firebaseConfig';
+import { DB_PATHS } from '../shared/schema';
 import SyncIcon from '@mui/icons-material/Sync';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningIcon from '@mui/icons-material/Warning';
@@ -18,14 +19,20 @@ function timeAgo(dateStr) {
   return `${days}d ago`;
 }
 
-export default function SyncStatusCard({ userId }) {
+const statusConfig = {
+  online: { label: 'Active', color: 'success', icon: <CheckCircleIcon sx={{ fontSize: 16 }} /> },
+  recent: { label: 'Recent', color: 'info', icon: <SyncIcon sx={{ fontSize: 16 }} /> },
+  inactive: { label: 'Inactive', color: 'warning', icon: <WarningIcon sx={{ fontSize: 16 }} /> },
+  unknown: { label: 'No data', color: 'default', icon: null },
+};
+
+export default React.memo(function SyncStatusCard({ userId }) {
   const [lastActive, setLastActive] = useState(null);
   const [status, setStatus] = useState('unknown');
 
   useEffect(() => {
     if (!userId) return;
-    const db = getDatabase();
-    const syncRef = ref(db, `userSync/${userId}`);
+    const syncRef = ref(db, `${DB_PATHS.USER_SYNC}/${userId}`);
 
     const unsubscribe = onValue(syncRef, (snapshot) => {
       const data = snapshot.val();
@@ -38,17 +45,12 @@ export default function SyncStatusCard({ userId }) {
         setLastActive(null);
         setStatus('unknown');
       }
+    }, () => {
+      setStatus('unknown');
     });
 
-    return () => unsubscribe();
+    return () => { off(syncRef); unsubscribe(); };
   }, [userId]);
-
-  const statusConfig = {
-    online: { label: 'Active', color: 'success', icon: <CheckCircleIcon sx={{ fontSize: 16 }} /> },
-    recent: { label: 'Recent', color: 'info', icon: <SyncIcon sx={{ fontSize: 16 }} /> },
-    inactive: { label: 'Inactive', color: 'warning', icon: <WarningIcon sx={{ fontSize: 16 }} /> },
-    unknown: { label: 'No data', color: 'default', icon: null },
-  };
 
   const config = statusConfig[status];
 
@@ -66,4 +68,4 @@ export default function SyncStatusCard({ userId }) {
       </Typography>
     </Box>
   );
-}
+});

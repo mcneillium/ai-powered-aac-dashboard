@@ -1,16 +1,18 @@
-// src/pages/Logs.js
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { ref, get, query, orderByChild, limitToLast } from 'firebase/database';
 import { db } from '../firebaseConfig';
 import {
   Container, Typography, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Paper, CircularProgress,
-  Box, Button, Chip, FormControl, InputLabel, Select, MenuItem, TextField
+  TableContainer, TableHead, TableRow, Paper,
+  Box, Button, Chip, FormControl, InputLabel, Select, MenuItem, Alert
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DownloadIcon from '@mui/icons-material/Download';
 import { useAuth } from '../contexts/AuthContext';
 import { DB_PATHS, getUserDisplayName, getLogUserId, getLogCarerId } from '../shared/schema';
+import PageSkeleton from '../components/PageSkeleton';
+
+const PAGE_SIZE = 50;
 
 export default function Logs() {
   const { currentUser, isAdmin, loading: authLoading } = useAuth();
@@ -18,10 +20,11 @@ export default function Logs() {
   const [logs, setLogs] = useState([]);
   const [linkedUserIds, setLinkedUserIds] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [actionFilter, setActionFilter] = useState('');
   const [levelFilter, setLevelFilter] = useState('all');
+  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 
-  // Fetch all users for name resolution
   useEffect(() => {
     get(ref(db, DB_PATHS.USERS)).then(snap => {
       const data = snap.val() || {};
@@ -29,7 +32,6 @@ export default function Logs() {
     }).catch(() => {});
   }, []);
 
-  // For caregivers: fetch linked user IDs
   useEffect(() => {
     if (isAdmin || authLoading || !currentUser) return;
     get(ref(db, DB_PATHS.USERS))
@@ -43,14 +45,12 @@ export default function Logs() {
       .catch(() => setLinkedUserIds([]));
   }, [currentUser, isAdmin, authLoading]);
 
-  // Name map
   const userNameMap = useMemo(() => {
     const map = {};
     allUsers.forEach(u => { map[u.id] = getUserDisplayName(u); });
     return map;
   }, [allUsers]);
 
-  // Unique action types for filter
   const actionTypes = useMemo(() => {
     const set = new Set(logs.map(l => l.action).filter(Boolean));
     return Array.from(set).sort();
@@ -59,6 +59,7 @@ export default function Logs() {
   const fetchLogs = useCallback(() => {
     if (!isAdmin && (authLoading || !currentUser)) return;
     setLoading(true);
+    setError(null);
 
     const logsQuery = query(
       ref(db, DB_PATHS.USER_LOGS),
@@ -79,7 +80,10 @@ export default function Logs() {
         }
         setLogs(arr);
       })
-      .catch(() => setLogs([]))
+      .catch(() => {
+        setLogs([]);
+        setError('Failed to load logs.');
+      })
       .finally(() => setLoading(false));
   }, [isAdmin, authLoading, currentUser, linkedUserIds]);
 
@@ -87,7 +91,6 @@ export default function Logs() {
     fetchLogs();
   }, [fetchLogs]);
 
-  // Filtered logs
   const filteredLogs = useMemo(() => {
     return logs.filter(l => {
       if (actionFilter && l.action !== actionFilter) return false;
@@ -96,8 +99,14 @@ export default function Logs() {
     });
   }, [logs, actionFilter, levelFilter]);
 
-  // CSV export
-  const handleExport = () => {
+  const visibleLogs = useMemo(
+    () => filteredLogs.slice(0, displayCount),
+    [filteredLogs, displayCount]
+  );
+
+  const hasMore = displayCount < filteredLogs.length;
+
+  const handleExport = useCallback(() => {
     const headers = ['Timestamp', 'User', 'Caregiver', 'Action', 'Level', 'Session'];
     const rows = filteredLogs.map(l => [
       l.timestamp ? new Date(l.timestamp).toISOString() : '',
@@ -115,19 +124,13 @@ export default function Logs() {
     a.download = `aac-logs-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  };
+  }, [filteredLogs]);
 
-  if ((authLoading && !isAdmin) || loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  if ((authLoading && !isAdmin) || loading) return <PageSkeleton />;
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Typography variant="h4">User Logs</Typography>
         <Box>
           <Button onClick={handleExport} startIcon={<DownloadIcon />} sx={{ mr: 1 }}>
@@ -139,16 +142,17 @@ export default function Logs() {
         </Box>
       </Box>
 
-      {/* Filters */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-        <FormControl sx={{ minWidth: 200 }}>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+        <FormControl sx={{ minWidth: 200 }} size="small">
           <InputLabel>Action Type</InputLabel>
           <Select value={actionFilter} label="Action Type" onChange={e => setActionFilter(e.target.value)}>
             <MenuItem value="">All Actions</MenuItem>
             {actionTypes.map(a => <MenuItem key={a} value={a}>{a}</MenuItem>)}
           </Select>
         </FormControl>
-        <FormControl sx={{ minWidth: 150 }}>
+        <FormControl sx={{ minWidth: 150 }} size="small">
           <InputLabel>Level</InputLabel>
           <Select value={levelFilter} label="Level" onChange={e => setLevelFilter(e.target.value)}>
             <MenuItem value="all">All Levels</MenuItem>
@@ -161,24 +165,24 @@ export default function Logs() {
       </Box>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        Showing {filteredLogs.length} of {logs.length} logs
+        Showing {visibleLogs.length} of {filteredLogs.length} logs
       </Typography>
 
       <TableContainer component={Paper}>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ backgroundColor: '#f2f2f2' }}>
+            <TableRow>
               <TableCell><strong>User</strong></TableCell>
               <TableCell><strong>Caregiver</strong></TableCell>
               <TableCell><strong>Action</strong></TableCell>
               <TableCell><strong>Level</strong></TableCell>
-              <TableCell><strong>Session</strong></TableCell>
+              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><strong>Session</strong></TableCell>
               <TableCell><strong>Timestamp</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredLogs.length > 0 ? (
-              filteredLogs.slice(0, 200).map(log => {
+            {visibleLogs.length > 0 ? (
+              visibleLogs.map(log => {
                 const uid = getLogUserId(log);
                 const cid = getLogCarerId(log);
                 return (
@@ -197,10 +201,10 @@ export default function Logs() {
                         }
                       />
                     </TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12, display: { xs: 'none', md: 'table-cell' } }}>
                       {log.sessionId ? log.sessionId.slice(0, 12) : '-'}
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
                       {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}
                     </TableCell>
                   </TableRow>
@@ -214,6 +218,17 @@ export default function Logs() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {hasMore && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+          <Button
+            variant="outlined"
+            onClick={() => setDisplayCount(prev => prev + PAGE_SIZE)}
+          >
+            Load more ({filteredLogs.length - displayCount} remaining)
+          </Button>
+        </Box>
+      )}
     </Container>
   );
 }

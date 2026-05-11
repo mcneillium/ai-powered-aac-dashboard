@@ -1,21 +1,18 @@
-/**
- * Shared schema constants for the CommAI AAC platform.
- *
- * These constants define the Firebase data contract between
- * the AAC app (React Native) and the dashboard (React web).
- *
- * IMPORTANT: Any changes here must be reflected in both codebases.
- */
-
 // ── Firebase Realtime Database Paths ──
 
 export const DB_PATHS = {
   USERS: 'users',                    // users/{uid}
   USER_SETTINGS: 'userSettings',     // userSettings/{uid}
   USER_LOGS: 'userLogs',            // userLogs/{pushId}
-  USER_SYNC: 'userSync',            // userSync/{uid}
+  SESSIONS: 'sessions',             // sessions/{uid}/{sessionId}
   FEEDBACK: 'feedback',             // feedback/{uid}/{pushId}
   FINE_TUNE_METRICS: 'fineTuneMetrics', // fineTuneMetrics/{pushId}
+  USER_SYNC: 'userSync',            // userSync/{uid}
+  ALERTS: 'alerts',                 // alerts/{caregiverId}/{pushId}
+  FAVORITES: 'favorites',           // favorites/{uid}/{pushId}
+  CUSTOM_BOARDS: 'customBoards',    // customBoards/{uid}/{boardId}
+  ARCHIVED_FEEDBACK: 'archivedFeedback', // archivedFeedback/{uid}/{pushId}
+  SYSTEM_CONFIG: 'systemConfig',    // systemConfig (dashboard-only)
 };
 
 // ── User Roles ──
@@ -115,6 +112,50 @@ export const FINE_TUNE_FIELDS = {
   TIMESTAMP: 'timestamp',
 };
 
+// ── Alert Schema ──
+// Path: alerts/{caregiverId}/{pushId}
+// Written by the mobile app when a trigger condition is met.
+
+export const ALERT_FIELDS = {
+  USER_ID: 'userId',       // string - the AAC user this alert is about
+  TYPE: 'type',            // 'distress' | 'inactivity' | 'vocabGap'
+  TRIGGER: 'trigger',      // string - human-readable description of what fired the alert
+  TIMESTAMP: 'timestamp',  // number - Date.now()
+  READ: 'read',            // boolean - whether the caregiver has seen it
+};
+
+export const ALERT_TYPES = {
+  DISTRESS: 'distress',
+  INACTIVITY: 'inactivity',
+  VOCAB_GAP: 'vocabGap',
+};
+
+// ── Favorite Schema ──
+// Path: favorites/{uid}/{pushId}
+
+export const FAVORITE_FIELDS = {
+  SENTENCE: 'sentence',
+  USAGE_COUNT: 'usageCount',
+  LAST_USED: 'lastUsed',
+  CATEGORY: 'category',
+};
+
+// ── Custom Board Schema ──
+// Path: customBoards/{uid}/{boardId}
+
+export const BOARD_FIELDS = {
+  NAME: 'name',
+  COLOR: 'color',
+  WORDS: 'words',
+  CREATED_AT: 'createdAt',
+  UPDATED_AT: 'updatedAt',
+};
+
+export const BOARD_COLORS = [
+  '#4CAF50', '#2196F3', '#FF9800', '#9C27B0',
+  '#F44336', '#00BCD4', '#FF5722', '#607D8B',
+];
+
 // ── Theme Values ──
 
 export const THEMES = {
@@ -130,31 +171,19 @@ export const EMOTIONS = [
   'Scared', 'Calm', 'Tired', 'Surprised',
 ];
 
-/**
- * Helper: get user display name with fallback
- */
 export function getUserDisplayName(user) {
   return user?.name || user?.email || 'Unknown User';
 }
 
-/**
- * Helper: check if a user record is a caregiver
- */
 export function isCaregiver(user) {
   return user?.role === ROLES.CAREGIVER || user?.role === ROLES.ADMIN;
 }
 
-/**
- * Helper: get the correct user ID field from a log entry.
- * The app writes targetUserId; legacy/test writes userId.
- */
+// The app writes targetUserId; legacy/test writes userId.
 export function getLogUserId(log) {
   return log?.targetUserId || log?.userId || null;
 }
 
-/**
- * Helper: get the caregiver ID from a log entry.
- */
 export function getLogCarerId(log) {
   return log?.carerId || null;
 }

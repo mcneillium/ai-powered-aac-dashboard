@@ -1,11 +1,10 @@
-// src/PrivateRoute.js
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Box, CircularProgress } from '@mui/material';
 
-export default function PrivateRoute({ children }) {
-  const { currentUser, authReady, roleLoading } = useAuth();
+export default function PrivateRoute({ children, requiredRole }) {
+  const { currentUser, authReady, roleLoading, isAdmin } = useAuth();
 
   if (!authReady) {
     return (
@@ -25,6 +24,10 @@ export default function PrivateRoute({ children }) {
         <CircularProgress />
       </Box>
     );
+  }
+
+  if (requiredRole === 'admin' && !isAdmin) {
+    return <Navigate to="/access-denied" replace />;
   }
 
   return children;

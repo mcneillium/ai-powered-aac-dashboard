@@ -1,10 +1,9 @@
-// src/pages/ConnectUser.js
-import React, { useEffect, useState } from 'react';
-import { ref, onValue, update } from 'firebase/database';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { ref, onValue, update, off } from 'firebase/database';
 import { db } from '../firebaseConfig';
 import {
   Container, Typography, Box, Button, Table, TableContainer,
-  TableHead, TableRow, TableCell, TableBody, Paper, TextField
+  TableHead, TableRow, TableCell, TableBody, Paper, TextField, Alert
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
@@ -14,23 +13,27 @@ import { DB_PATHS, ROLES, getUserDisplayName } from '../shared/schema';
 export default function ConnectUser() {
   const [unassignedUsers, setUnassignedUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState(null);
   const { currentUser } = useAuth();
 
-  // Fetch users without a caregiverId (unassigned AAC users)
   useEffect(() => {
     const usersRef = ref(db, DB_PATHS.USERS);
-    const unsubscribe = onValue(usersRef, (snapshot) => {
-      const data = snapshot.val() || {};
-      const list = Object.entries(data)
-        .map(([id, val]) => ({ id, ...val }))
-        .filter((user) => !user.caregiverId && user.role !== ROLES.ADMIN && user.role !== ROLES.CAREGIVER);
-      setUnassignedUsers(list);
-    });
-    return () => unsubscribe();
+    const unsubscribe = onValue(
+      usersRef,
+      (snapshot) => {
+        const data = snapshot.val() || {};
+        const list = Object.entries(data)
+          .map(([id, val]) => ({ id, ...val }))
+          .filter((user) => !user.caregiverId && user.role !== ROLES.ADMIN && user.role !== ROLES.CAREGIVER);
+        setUnassignedUsers(list);
+        setError(null);
+      },
+      () => { setError('Failed to load users.'); }
+    );
+    return () => { off(usersRef); unsubscribe(); };
   }, []);
 
-  // Connect current caregiver to a user
-  const connectUser = async (userId) => {
+  const connectUser = useCallback(async (userId) => {
     if (!currentUser) {
       toast.error('You must be logged in to connect to a user.');
       return;
@@ -40,17 +43,19 @@ export default function ConnectUser() {
         caregiverId: currentUser.uid
       });
       toast.success('User connected successfully!');
-    } catch (error) {
-      console.error('Error connecting user:', error);
+    } catch {
       toast.error('Error connecting user.');
     }
-  };
+  }, [currentUser]);
 
-  const filteredUsers = unassignedUsers.filter((user) => {
-    const name = (user.name || '').toLowerCase();
-    const email = (user.email || '').toLowerCase();
-    return name.includes(searchTerm.toLowerCase()) || email.includes(searchTerm.toLowerCase());
-  });
+  const filteredUsers = useMemo(() => {
+    const search = searchTerm.toLowerCase();
+    return unassignedUsers.filter((user) => {
+      const name = (user.name || '').toLowerCase();
+      const email = (user.email || '').toLowerCase();
+      return name.includes(search) || email.includes(search);
+    });
+  }, [unassignedUsers, searchTerm]);
 
   return (
     <Container sx={{ py: 4 }}>
@@ -60,6 +65,9 @@ export default function ConnectUser() {
           Back to Dashboard
         </Button>
       </Box>
+
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
       <Box sx={{ mb: 2 }}>
         <TextField
           label="Search Unassigned Users"
@@ -73,7 +81,7 @@ export default function ConnectUser() {
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
-            <TableRow sx={{ backgroundColor: '#f2f2f2' }}>
+            <TableRow sx={{ bgcolor: 'action.hover' }}>
               <TableCell>Name</TableCell>
               <TableCell>Email</TableCell>
               <TableCell>Action</TableCell>
@@ -93,7 +101,11 @@ export default function ConnectUser() {
             ))}
             {filteredUsers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} align="center">No unassigned users found.</TableCell>
+                <TableCell colSpan={3} align="center">
+                  {unassignedUsers.length === 0
+                    ? 'All users are already assigned to a caregiver.'
+                    : 'No matching users found.'}
+                </TableCell>
               </TableRow>
             )}
           </TableBody>

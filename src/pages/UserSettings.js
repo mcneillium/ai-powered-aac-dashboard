@@ -1,42 +1,45 @@
-// src/pages/UserSettings.js
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ref, onValue, get } from 'firebase/database';
+import { ref, onValue, get, off } from 'firebase/database';
 import { db } from '../firebaseConfig';
 import {
   Container, Typography, Paper, Box, Button,
-  Table, TableBody, TableRow, TableCell, CircularProgress
+  Table, TableBody, TableRow, TableCell, Alert
 } from '@mui/material';
 import { DB_PATHS, SETTINGS_DEFAULTS, getUserDisplayName } from '../shared/schema';
+import PageSkeleton from '../components/PageSkeleton';
 
 export default function UserSettings() {
   const { userId } = useParams();
   const [settings, setSettings] = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    get(ref(db, `${DB_PATHS.USERS}/${userId}`)).then(snap => {
-      setUserData(snap.val());
-    }).catch(() => {});
+    get(ref(db, `${DB_PATHS.USERS}/${userId}`))
+      .then(snap => setUserData(snap.val()))
+      .catch(() => {});
   }, [userId]);
 
   useEffect(() => {
     const settingsRef = ref(db, `${DB_PATHS.USER_SETTINGS}/${userId}`);
-    const unsubscribe = onValue(settingsRef, (snap) => {
-      setSettings(snap.val() || {});
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    const unsubscribe = onValue(
+      settingsRef,
+      (snap) => {
+        setSettings(snap.val() || {});
+        setLoading(false);
+        setError(null);
+      },
+      () => {
+        setError('Failed to load settings.');
+        setLoading(false);
+      }
+    );
+    return () => { off(settingsRef); unsubscribe(); };
   }, [userId]);
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  if (loading) return <PageSkeleton />;
 
   const merged = { ...SETTINGS_DEFAULTS, ...settings };
 
@@ -63,6 +66,8 @@ export default function UserSettings() {
           Back to Users
         </Button>
       </Box>
+
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Paper sx={{ p: 3 }}>
         <Typography variant="h6" gutterBottom>Current Preferences</Typography>

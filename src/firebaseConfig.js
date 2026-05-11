@@ -1,16 +1,15 @@
-// firebaseConfig.js
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyBZS_Bfl7Bj4axlFt8Pg3HebYzAbrqBDQs',
-  authDomain: 'commai-b98fe.firebaseapp.com',
-  databaseURL: 'https://commai-b98fe-default-rtdb.europe-west1.firebasedatabase.app',
-  projectId: 'commai-b98fe',
-  storageBucket: 'commai-b98fe.appspot.com',
-  messagingSenderId: '419619126158',
-  appId: '1:419619126158:web:202d9bdfbab0878fbdc2df'
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.REACT_APP_FIREBASE_DATABASE_URL,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);

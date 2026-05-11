@@ -1,28 +1,28 @@
-// src/pages/UserActions.js
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ref, onValue, get } from 'firebase/database';
+import { ref, onValue, get, off } from 'firebase/database';
 import { db } from '../firebaseConfig';
 import {
   Container, Typography, Table, TableHead, TableRow, TableCell,
-  TableBody, Paper, TableContainer, Button, Box, Chip, Card, CardContent, Grid
+  TableBody, Paper, TableContainer, Button, Box, Chip, Card, CardContent, Grid, Alert
 } from '@mui/material';
 import { DB_PATHS, getUserDisplayName, getLogUserId, getLogCarerId } from '../shared/schema';
+import PageSkeleton from '../components/PageSkeleton';
 
 export default function UserActions() {
   const { userId } = useParams();
   const [logs, setLogs] = useState([]);
   const [userData, setUserData] = useState(null);
   const [allUsers, setAllUsers] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Fetch user profile
   useEffect(() => {
-    get(ref(db, `${DB_PATHS.USERS}/${userId}`)).then(snap => {
-      setUserData(snap.val());
-    }).catch(() => {});
+    get(ref(db, `${DB_PATHS.USERS}/${userId}`))
+      .then(snap => setUserData(snap.val()))
+      .catch(() => {});
   }, [userId]);
 
-  // Fetch all users for name resolution
   useEffect(() => {
     get(ref(db, DB_PATHS.USERS)).then(snap => {
       const data = snap.val() || {};
@@ -32,24 +32,28 @@ export default function UserActions() {
     }).catch(() => {});
   }, []);
 
-  // Listen to logs for this user
   useEffect(() => {
     const logsRef = ref(db, DB_PATHS.USER_LOGS);
-    const unsubscribe = onValue(logsRef, (snapshot) => {
-      const data = snapshot.val() || {};
-      const logsArray = Object.entries(data)
-        .map(([id, log]) => ({ id, ...log }))
-        .filter(log => {
-          const uid = getLogUserId(log);
-          return uid === userId;
-        })
-        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-      setLogs(logsArray);
-    });
-    return () => unsubscribe();
+    const unsubscribe = onValue(
+      logsRef,
+      (snapshot) => {
+        const data = snapshot.val() || {};
+        const logsArray = Object.entries(data)
+          .map(([id, log]) => ({ id, ...log }))
+          .filter(log => getLogUserId(log) === userId)
+          .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        setLogs(logsArray);
+        setLoading(false);
+        setError(null);
+      },
+      () => {
+        setError('Failed to load activity logs.');
+        setLoading(false);
+      }
+    );
+    return () => { off(logsRef); unsubscribe(); };
   }, [userId]);
 
-  // Compute activity summary
   const summary = useMemo(() => {
     const actionCounts = {};
     logs.forEach(l => {
@@ -60,6 +64,8 @@ export default function UserActions() {
     const todayCount = logs.filter(l => new Date(l.timestamp).toDateString() === today).length;
     return { actionCounts, todayCount, totalCount: logs.length };
   }, [logs]);
+
+  if (loading) return <PageSkeleton />;
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -77,7 +83,8 @@ export default function UserActions() {
         </Button>
       </Box>
 
-      {/* Summary cards */}
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item md={3} xs={6}>
           <Card>
@@ -103,21 +110,23 @@ export default function UserActions() {
                 {Object.entries(summary.actionCounts).map(([action, count]) => (
                   <Chip key={action} label={`${action}: ${count}`} size="small" />
                 ))}
+                {Object.keys(summary.actionCounts).length === 0 && (
+                  <Typography variant="body2" color="text.secondary">No actions recorded</Typography>
+                )}
               </Box>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      {/* Logs table */}
       <TableContainer component={Paper}>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+            <TableRow sx={{ bgcolor: 'action.hover' }}>
               <TableCell><strong>Action</strong></TableCell>
               <TableCell><strong>Caregiver</strong></TableCell>
               <TableCell><strong>Level</strong></TableCell>
-              <TableCell><strong>Session</strong></TableCell>
+              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><strong>Session</strong></TableCell>
               <TableCell><strong>Timestamp</strong></TableCell>
             </TableRow>
           </TableHead>
@@ -139,10 +148,12 @@ export default function UserActions() {
                         }
                       />
                     </TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12, display: { xs: 'none', md: 'table-cell' } }}>
                       {log.sessionId ? log.sessionId.slice(0, 12) : '-'}
                     </TableCell>
-                    <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}
+                    </TableCell>
                   </TableRow>
                 );
               })

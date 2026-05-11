@@ -1,7 +1,4 @@
-// src/pages/FineTuneMetrics.js
-import React, { useState, useEffect } from 'react';
-import { ref, onValue } from 'firebase/database';
-import { db } from '../firebaseConfig';
+import React, { useMemo } from 'react';
 import {
   Typography,
   Paper,
@@ -9,10 +6,12 @@ import {
   Grid,
   Card,
   CardContent,
-  CircularProgress,
-  Chip
+  Chip,
+  Alert
 } from '@mui/material';
 import { DB_PATHS } from '../shared/schema';
+import useFirebaseList from '../hooks/useFirebaseList';
+import PageSkeleton from '../components/PageSkeleton';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -29,29 +28,16 @@ import {
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Title, Tooltip, Legend, Filler);
 
 export default function FineTuneMetrics() {
-  const [metrics, setMetrics] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: rawMetrics, loading, error } = useFirebaseList(DB_PATHS.FINE_TUNE_METRICS);
 
-  useEffect(() => {
-    const metricsRef = ref(db, DB_PATHS.FINE_TUNE_METRICS);
-    const unsubscribe = onValue(metricsRef, (snapshot) => {
-      const data = snapshot.val() || {};
-      const arr = Object.entries(data)
-        .map(([id, entry]) => ({ id, ...entry }))
-        .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-      setMetrics(arr);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
+  const metrics = useMemo(
+    () => [...rawMetrics].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)),
+    [rawMetrics]
+  );
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  if (loading) return <PageSkeleton />;
+
+  if (error) return <Alert severity="error" sx={{ m: 2 }}>{error}</Alert>;
 
   const latestLoss = metrics.length > 0 ? metrics[metrics.length - 1].loss : null;
   const latestAcc = metrics.length > 0 ? metrics[metrics.length - 1].accuracy : null;
@@ -138,7 +124,7 @@ export default function FineTuneMetrics() {
                 <CardContent>
                   <Typography variant="caption" color="text.secondary">Latest loss</Typography>
                   <Typography variant="h4" fontWeight={600} color="error.main">
-                    {latestLoss?.toFixed(4) || '\u2014'}
+                    {latestLoss?.toFixed(4) || '—'}
                   </Typography>
                 </CardContent>
               </Card>
@@ -148,7 +134,7 @@ export default function FineTuneMetrics() {
                 <CardContent>
                   <Typography variant="caption" color="text.secondary">Latest accuracy</Typography>
                   <Typography variant="h4" fontWeight={600} color="success.main">
-                    {latestAcc ? `${(latestAcc * 100).toFixed(1)}%` : '\u2014'}
+                    {latestAcc ? `${(latestAcc * 100).toFixed(1)}%` : '—'}
                   </Typography>
                 </CardContent>
               </Card>
@@ -158,7 +144,7 @@ export default function FineTuneMetrics() {
                 <CardContent>
                   <Typography variant="caption" color="text.secondary">Loss improvement</Typography>
                   <Typography variant="h4" fontWeight={600} color="info.main">
-                    {improvement ? `${improvement}%` : '\u2014'}
+                    {improvement ? `${improvement}%` : '—'}
                   </Typography>
                   {improvement && (
                     <Chip
@@ -173,7 +159,7 @@ export default function FineTuneMetrics() {
             </Grid>
           </Grid>
 
-          <Paper sx={{ p: 3, height: 400 }}>
+          <Paper sx={{ p: 3, height: 400 }} role="img" aria-label="Training progress chart">
             <Typography variant="h6" gutterBottom>Training progress</Typography>
             <Box sx={{ height: 320 }}>
               <Line data={chartData} options={chartOptions} />

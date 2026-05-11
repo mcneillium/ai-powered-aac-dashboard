@@ -72,7 +72,7 @@ export default function Signup() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: '#f4f6f8',
+        bgcolor: 'background.default',
         p: 2,
       }}
     >
@@ -83,11 +83,12 @@ export default function Signup() {
           maxWidth: 420,
           width: '100%',
           borderRadius: 3,
-          border: '1px solid rgba(0,0,0,0.08)',
+          border: 1,
+          borderColor: 'divider',
         }}
       >
         <Box sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight={700} sx={{ color: '#4CAF50', mb: 0.5 }}>
+          <Typography variant="h4" fontWeight={700} sx={{ color: 'primary.main', mb: 0.5 }}>
             CommAI
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -150,8 +151,6 @@ export default function Signup() {
             size="large"
             disabled={loading}
             sx={{
-              bgcolor: '#4CAF50',
-              '&:hover': { bgcolor: '#388E3C' },
               py: 1.5,
               textTransform: 'none',
               fontWeight: 600,
@@ -169,7 +168,7 @@ export default function Signup() {
               component="button"
               variant="body2"
               onClick={() => navigate('/login')}
-              sx={{ color: '#4CAF50', fontWeight: 600 }}
+              sx={{ color: 'primary.main', fontWeight: 600 }}
             >
               Sign in
             </Link>

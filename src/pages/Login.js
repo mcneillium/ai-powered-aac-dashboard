@@ -1,6 +1,6 @@
-// src/pages/Login.js
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Box,
@@ -14,14 +14,15 @@ import {
 } from '@mui/material';
 import { toast } from 'react-hot-toast';
 import { ref, get, set } from 'firebase/database';
-import { db } from '../firebaseConfig';
-import { ROLES } from '../shared/schema';
+import { auth, db } from '../firebaseConfig';
+import { ROLES, DB_PATHS } from '../shared/schema';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resetSent, setResetSent] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
@@ -37,18 +38,15 @@ export default function Login() {
       const userCredential = await signIn(email, password);
       const user = userCredential.user;
 
-      // Read role from database
-      const roleSnap = await get(ref(db, `users/${user.uid}/role`));
+      const roleSnap = await get(ref(db, `${DB_PATHS.USERS}/${user.uid}/role`));
       let role = roleSnap.val();
 
-      // If no role exists, bootstrap the user record
       if (!role) {
-        // Check if any users exist at all — first user becomes admin
-        const usersSnap = await get(ref(db, 'users'));
+        const usersSnap = await get(ref(db, DB_PATHS.USERS));
         const isFirstUser = !usersSnap.exists() || !usersSnap.val();
         role = isFirstUser ? ROLES.ADMIN : ROLES.CAREGIVER;
 
-        await set(ref(db, `users/${user.uid}`), {
+        await set(ref(db, `${DB_PATHS.USERS}/${user.uid}`), {
           email: user.email,
           name: user.displayName || user.email,
           role: role,
@@ -57,17 +55,8 @@ export default function Login() {
         toast.success(`Account set up as ${role}`);
       }
 
-      if (role === ROLES.ADMIN) {
-        toast.success('Logged in successfully');
-        navigate('/admin', { replace: true });
-      } else if (role === ROLES.CAREGIVER) {
-        toast.success('Logged in successfully');
-        navigate('/caregiver', { replace: true });
-      } else {
-        // Any other role (e.g. 'user') — treat as caregiver
-        toast.success('Logged in successfully');
-        navigate('/caregiver', { replace: true });
-      }
+      toast.success('Logged in successfully');
+      navigate(role === ROLES.ADMIN ? '/admin' : '/caregiver', { replace: true });
     } catch (err) {
       const msg = err.code === 'auth/invalid-credential'
         ? 'Invalid email or password.'
@@ -80,6 +69,24 @@ export default function Login() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Please enter your email address first.');
+      return;
+    }
+    setError('');
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetSent(true);
+      toast.success('Password reset email sent!');
+    } catch (err) {
+      const msg = err.code === 'auth/user-not-found'
+        ? 'No account found with this email.'
+        : 'Failed to send password reset email.';
+      setError(msg);
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -87,7 +94,7 @@ export default function Login() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: '#f4f6f8',
+        bgcolor: 'background.default',
         p: 2,
       }}
     >
@@ -98,11 +105,12 @@ export default function Login() {
           maxWidth: 420,
           width: '100%',
           borderRadius: 3,
-          border: '1px solid rgba(0,0,0,0.08)',
+          border: 1,
+          borderColor: 'divider',
         }}
       >
         <Box sx={{ textAlign: 'center', mb: 4 }}>
-          <Typography variant="h4" fontWeight={700} sx={{ color: '#4CAF50', mb: 0.5 }}>
+          <Typography variant="h4" fontWeight={700} sx={{ color: 'primary.main', mb: 0.5 }}>
             CommAI
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -111,6 +119,7 @@ export default function Login() {
         </Box>
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {resetSent && <Alert severity="success" sx={{ mb: 2 }}>Password reset email sent. Check your inbox.</Alert>}
 
         <Box component="form" onSubmit={handleLogin}>
           <TextField
@@ -128,8 +137,19 @@ export default function Login() {
             fullWidth
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            sx={{ mb: 3 }}
+            sx={{ mb: 1 }}
           />
+          <Box sx={{ textAlign: 'right', mb: 2 }}>
+            <Link
+              component="button"
+              type="button"
+              variant="body2"
+              onClick={handleForgotPassword}
+              sx={{ color: 'primary.main', fontSize: 13 }}
+            >
+              Forgot password?
+            </Link>
+          </Box>
           <Button
             type="submit"
             variant="contained"
@@ -137,8 +157,6 @@ export default function Login() {
             size="large"
             disabled={loading}
             sx={{
-              bgcolor: '#4CAF50',
-              '&:hover': { bgcolor: '#388E3C' },
               py: 1.5,
               textTransform: 'none',
               fontWeight: 600,
@@ -156,7 +174,7 @@ export default function Login() {
               component="button"
               variant="body2"
               onClick={() => navigate('/signup')}
-              sx={{ color: '#4CAF50', fontWeight: 600 }}
+              sx={{ color: 'primary.main', fontWeight: 600 }}
             >
               Sign up
             </Link>

@@ -1,4 +1,3 @@
-// src/chartOptions.js
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -13,21 +12,11 @@ import {
   Filler
 } from 'chart.js';
 
-// Register Chart.js components
 ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  LineElement,
-  PointElement,
-  ArcElement,
-  BarElement,
-  Title,
-  ChartTooltip,
-  Legend,
-  Filler
+  CategoryScale, LinearScale, LineElement, PointElement,
+  ArcElement, BarElement, Title, ChartTooltip, Legend, Filler
 );
 
-// Shared tooltip configuration
 const tooltipConfig = {
   enabled: true,
   mode: 'index',
@@ -39,22 +28,12 @@ const tooltipConfig = {
   padding: 8,
   cornerRadius: 4,
   displayColors: true,
-  callbacks: {
-    label: function(context) {
-      let label = context.dataset.label || '';
-      if (label) label += ': ';
-      if (context.parsed.y !== null) label += context.parsed.y;
-      return label;
-    }
-  }
 };
 
-// Base options for all charts
 const chartBaseOptions = {
-  responsive: false,
+  responsive: true,
   maintainAspectRatio: false,
-  animation: false,
-  resizeDelay: 200,
+  animation: { duration: 0 },
   elements: {
     line: { tension: 0.1 },
     point: { radius: 3, hitRadius: 10, hoverRadius: 5 }
@@ -71,8 +50,6 @@ const chartBaseOptions = {
     y: {
       beginAtZero: true,
       ticks: { precision: 0 },
-      grace: '10%',
-      min: 0
     }
   }
 };

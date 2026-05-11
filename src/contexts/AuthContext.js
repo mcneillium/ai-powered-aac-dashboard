@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
 import { ref, get } from 'firebase/database';
-import { ROLES } from '../shared/schema';
+import { ROLES, DB_PATHS } from '../shared/schema';
 
 const AuthContext = createContext();
 
@@ -23,7 +23,7 @@ export function AuthProvider({ children }) {
         setRoleLoading(true);
 
         try {
-          const dbPromise = get(ref(db, `users/${user.uid}/role`));
+          const dbPromise = get(ref(db, `${DB_PATHS.USERS}/${user.uid}/role`));
           const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Role lookup timed out')), 5000)
           );
@@ -33,7 +33,7 @@ export function AuthProvider({ children }) {
           setIsAdmin(role === ROLES.ADMIN);
           setIsCaregiver(role === ROLES.CAREGIVER || role === ROLES.ADMIN);
         } catch (err) {
-          console.error('Failed to fetch role:', err);
+          // Role fetch failed — user will have no role-based access
           setUserRole(null);
           setIsAdmin(false);
           setIsCaregiver(false);
@@ -79,4 +79,9 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   return useContext(AuthContext);
+}
+
+export function useUserRole() {
+  const { userRole, isAdmin, isCaregiver } = useContext(AuthContext);
+  return { userRole, isAdmin, isCaregiver };
 }

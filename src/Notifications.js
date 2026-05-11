@@ -1,8 +1,8 @@
-// src/Notifications.js
 import React, { useEffect, useState } from 'react';
-import { ref, onValue, query, orderByChild, limitToLast } from 'firebase/database';
+import { ref, onValue, query, orderByChild, limitToLast, off } from 'firebase/database';
 import { db } from './firebaseConfig';
 import { useAuth } from './contexts/AuthContext';
+import { DB_PATHS } from './shared/schema';
 import {
   Typography,
   Box,
@@ -12,7 +12,6 @@ import {
   ListItemIcon,
   ListItemText,
   Chip,
-  CircularProgress,
   Divider
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
@@ -21,6 +20,8 @@ import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ModelTrainingIcon from '@mui/icons-material/ModelTraining';
 import FeedbackIcon from '@mui/icons-material/Feedback';
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
+import PageSkeleton from './components/PageSkeleton';
 
 function categorizeLog(log) {
   const action = (log.action || '').toLowerCase();
@@ -55,18 +56,15 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const logsQuery = query(
-      ref(db, 'userLogs'),
-      orderByChild('timestamp'),
-      limitToLast(50)
-    );
+    const logsRef = ref(db, DB_PATHS.USER_LOGS);
+    const logsQuery = query(logsRef, orderByChild('timestamp'), limitToLast(50));
+
     const unsubscribe = onValue(logsQuery, (snap) => {
       const data = snap.val() || {};
       let arr = Object.entries(data)
         .map(([id, log]) => ({ id, ...log }))
         .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
-      // Caregivers only see their linked users' events
       if (!isAdmin && currentUser) {
         arr = arr.filter(
           (l) => l.carerId === currentUser.uid || l.targetUserId === currentUser.uid
@@ -74,17 +72,11 @@ export default function Notifications() {
       }
       setEvents(arr);
       setLoading(false);
-    });
-    return () => unsubscribe();
+    }, () => { setLoading(false); });
+    return () => { off(logsRef); unsubscribe(); };
   }, [isAdmin, currentUser]);
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  if (loading) return <PageSkeleton />;
 
   return (
     <Box>
@@ -97,6 +89,7 @@ export default function Notifications() {
 
       {events.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
+          <NotificationsNoneIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
           <Typography color="text.secondary">No recent notifications.</Typography>
         </Paper>
       ) : (
@@ -121,8 +114,8 @@ export default function Notifications() {
                       secondary={
                         <Typography variant="caption" color="text.secondary">
                           {event.carerId && `Carer: ${event.carerId.substring(0, 8)}...`}
-                          {event.targetUserId && ` • User: ${event.targetUserId.substring(0, 8)}...`}
-                          {' • '}{timeAgo(event.timestamp)}
+                          {event.targetUserId && ` | User: ${event.targetUserId.substring(0, 8)}...`}
+                          {' | '}{timeAgo(event.timestamp)}
                         </Typography>
                       }
                     />

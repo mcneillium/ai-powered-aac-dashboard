@@ -1,6 +1,6 @@
 // src/pages/AdminDashboard.js
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { ref, get, query, orderByChild, limitToLast } from 'firebase/database';
+import { ref, get, query, orderByChild, limitToLast, onValue, off } from 'firebase/database';
 import { db } from '../firebaseConfig';
 import { Link } from 'react-router-dom';
 import {
@@ -17,6 +17,7 @@ import {
 } from 'chart.js';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import { ROLES, DB_PATHS, getUserDisplayName, getLogUserId } from '../shared/schema';
 
 ChartJS.register(
@@ -38,10 +39,13 @@ const chartBaseOptions = {
   }
 };
 
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 export default function AdminDashboard() {
   const [viewType, setViewType] = useState('users');
   const [allUsers, setAllUsers] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [alertSummary, setAlertSummary] = useState({ total: 0, unread: 0, byType: {} });
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -54,7 +58,6 @@ export default function AdminDashboard() {
   const [userFilter, setUserFilter] = useState('all');
   const [timeFrame, setTimeFrame] = useState('week');
 
-  // Derive users and caregivers from the unified users collection
   const users = useMemo(
     () => allUsers.filter(u => u.role === ROLES.USER || !u.role),
     [allUsers]
@@ -102,7 +105,27 @@ export default function AdminDashboard() {
     refreshAll();
   }, [refreshAll]);
 
-  // Build a UID->display name map for readable log display
+  useEffect(() => {
+    const alertsRef = ref(db, DB_PATHS.ALERTS);
+    const unsub = onValue(alertsRef, (snap) => {
+      const data = snap.val() || {};
+      let total = 0, unread = 0;
+      const byType = {};
+      Object.values(data).forEach(cgAlerts => {
+        if (typeof cgAlerts === 'object') {
+          Object.values(cgAlerts).forEach(a => {
+            total++;
+            if (!a.read) unread++;
+            const t = a.type || 'unknown';
+            byType[t] = (byType[t] || 0) + 1;
+          });
+        }
+      });
+      setAlertSummary({ total, unread, byType });
+    }, () => {});
+    return () => { off(alertsRef); unsub(); };
+  }, []);
+
   const userNameMap = useMemo(() => {
     const map = {};
     allUsers.forEach(u => { map[u.id] = getUserDisplayName(u); });
@@ -188,6 +211,67 @@ export default function AdminDashboard() {
     };
   }, [filteredLogs, userNameMap]);
 
+  // User growth chart — users created per week
+  const growthData = useMemo(() => {
+    const weeks = {};
+    allUsers.forEach(u => {
+      if (!u.createdAt) return;
+      const d = new Date(u.createdAt);
+      const weekStart = new Date(d);
+      weekStart.setDate(d.getDate() - d.getDay());
+      const key = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      weeks[key] = (weeks[key] || 0) + 1;
+    });
+    const labels = Object.keys(weeks);
+    let cumulative = 0;
+    const cumulativeData = labels.map(l => { cumulative += weeks[l]; return cumulative; });
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'New users',
+          data: labels.map(l => weeks[l]),
+          backgroundColor: 'rgba(66, 165, 245, 0.5)',
+          borderColor: '#42a5f5',
+          type: 'bar',
+          yAxisID: 'y',
+        },
+        {
+          label: 'Total users',
+          data: cumulativeData,
+          borderColor: '#4CAF50',
+          backgroundColor: 'rgba(76, 175, 80, 0.1)',
+          fill: true,
+          tension: 0.3,
+          type: 'line',
+          yAxisID: 'y1',
+        },
+      ]
+    };
+  }, [allUsers]);
+
+  const growthOptions = {
+    ...chartBaseOptions,
+    scales: {
+      x: { grid: { display: false } },
+      y: { beginAtZero: true, position: 'left', ticks: { precision: 0 }, title: { display: true, text: 'New' } },
+      y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { precision: 0 }, title: { display: true, text: 'Total' } },
+    },
+  };
+
+  // Activity heatmap data (hour x day-of-week)
+  const heatmapData = useMemo(() => {
+    const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
+    logs.forEach(l => {
+      if (!l.timestamp) return;
+      const d = new Date(l.timestamp);
+      grid[d.getDay()][d.getHours()]++;
+    });
+    return grid;
+  }, [logs]);
+
+  const heatmapMax = useMemo(() => Math.max(1, ...heatmapData.flat()), [heatmapData]);
+
   const stats = useMemo(() => {
     const today = new Date().toDateString();
     const todayLogs = logs.filter(
@@ -201,16 +285,17 @@ export default function AdminDashboard() {
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 1 }}>
         <Typography variant="h4">Admin Dashboard</Typography>
-        <ButtonGroup variant="outlined">
-          <Button component={Link} to="/user-management">User Management</Button>
+        <ButtonGroup variant="outlined" size="small">
+          <Button component={Link} to="/user-management">Users</Button>
           <Button component={Link} to="/logs">Logs</Button>
           <Button component={Link} to="/finetune-metrics">AI Metrics</Button>
-          <Button component={Link} to="/feedback">Feedback</Button>
+          <Button component={Link} to="/alerts">Alerts</Button>
+          <Button component={Link} to="/feedback-admin">Feedback</Button>
           <Button
             onClick={refreshAll}
-            startIcon={refreshing ? <CircularProgress size={20} /> : <RefreshIcon />}
+            startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
           >
             Refresh
           </Button>
@@ -218,40 +303,111 @@ export default function AdminDashboard() {
       </Box>
 
       {/* Summary stats */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item md={3} xs={6}>
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item md={2} xs={6}>
           <Card>
             <CardContent>
-              <Typography color="text.secondary">Total Users</Typography>
+              <Typography variant="caption" color="text.secondary">Total Users</Typography>
               <Typography variant="h4">{users.length}</Typography>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item md={3} xs={6}>
+        <Grid item md={2} xs={6}>
           <Card>
             <CardContent>
-              <Typography color="text.secondary">Caregivers</Typography>
+              <Typography variant="caption" color="text.secondary">Caregivers</Typography>
               <Typography variant="h4">{caregivers.length}</Typography>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item md={3} xs={6}>
+        <Grid item md={2} xs={6}>
           <Card>
             <CardContent>
-              <Typography color="text.secondary">Today's Activities</Typography>
+              <Typography variant="caption" color="text.secondary">Today's Activities</Typography>
               <Typography variant="h4">{stats.todayCount}</Typography>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item md={3} xs={6}>
+        <Grid item md={2} xs={6}>
           <Card>
             <CardContent>
-              <Typography color="text.secondary">Active Users Today</Typography>
+              <Typography variant="caption" color="text.secondary">Active Today</Typography>
               <Typography variant="h4">{stats.activeUsersCount}</Typography>
             </CardContent>
           </Card>
         </Grid>
+        <Grid item md={2} xs={6}>
+          <Card sx={{ borderLeft: alertSummary.unread > 0 ? '4px solid' : undefined, borderColor: alertSummary.unread > 0 ? 'error.main' : undefined }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <NotificationsActiveIcon sx={{ fontSize: 16, color: alertSummary.unread > 0 ? 'error.main' : 'text.secondary' }} />
+                <Typography variant="caption" color="text.secondary">Unread Alerts</Typography>
+              </Box>
+              <Typography variant="h4">{alertSummary.unread}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item md={2} xs={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="caption" color="text.secondary">Total Alerts</Typography>
+              <Typography variant="h4">{alertSummary.total}</Typography>
+              <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
+                {Object.entries(alertSummary.byType).map(([type, count]) => (
+                  <Chip key={type} label={`${type}: ${count}`} size="small" variant="outlined" />
+                ))}
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
+
+      {/* User growth chart */}
+      <Paper sx={{ p: 2, mb: 3, height: 280 }} role="img" aria-label="User growth chart">
+        <Typography variant="h6" gutterBottom>User Growth</Typography>
+        {growthData.labels.length > 0 ? (
+          <Bar data={growthData} options={growthOptions} />
+        ) : (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 220 }}>
+            <Typography color="text.secondary">Not enough data to show growth trends</Typography>
+          </Box>
+        )}
+      </Paper>
+
+      {/* Activity heatmap */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Typography variant="h6" gutterBottom>Activity Heatmap (hour / day)</Typography>
+        <Box sx={{ overflowX: 'auto' }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '50px repeat(24, 1fr)', gap: '2px', minWidth: 600 }}>
+            <Box />
+            {Array.from({ length: 24 }, (_, h) => (
+              <Typography key={h} variant="caption" align="center" color="text.secondary">{h}</Typography>
+            ))}
+            {DAY_NAMES.map((day, di) => (
+              <React.Fragment key={day}>
+                <Typography variant="caption" sx={{ lineHeight: '24px' }}>{day}</Typography>
+                {Array.from({ length: 24 }, (_, h) => {
+                  const val = heatmapData[di][h];
+                  const intensity = val / heatmapMax;
+                  return (
+                    <Box
+                      key={h}
+                      title={`${day} ${h}:00 — ${val} events`}
+                      sx={{
+                        height: 24,
+                        borderRadius: 0.5,
+                        bgcolor: val === 0
+                          ? 'action.hover'
+                          : `rgba(76, 175, 80, ${0.15 + intensity * 0.85})`,
+                      }}
+                    />
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </Box>
+        </Box>
+      </Paper>
 
       {/* View toggle: users vs caregivers */}
       <Box sx={{ mb: 4, display: 'flex', alignItems: 'center' }}>
@@ -270,7 +426,7 @@ export default function AdminDashboard() {
         <TableContainer component={Paper} sx={{ mb: 4 }}>
           <Table>
             <TableHead>
-              <TableRow>
+              <TableRow sx={{ bgcolor: 'action.hover' }}>
                 <TableCell>Name</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Role</TableCell>
@@ -359,21 +515,39 @@ export default function AdminDashboard() {
       {/* Charts */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item md={6} xs={12}>
-          <Paper sx={{ p: 2, height: 300 }}>
+          <Paper sx={{ p: 2, height: 300 }} role="img" aria-label="Activity trends chart">
             <Typography variant="h6">Activity Trends</Typography>
-            <Line data={lineData} options={chartBaseOptions} />
+            {filteredLogs.length > 0 ? (
+              <Line data={lineData} options={chartBaseOptions} />
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 240 }}>
+                <Typography color="text.secondary">Not enough data</Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
         <Grid item md={3} xs={12}>
-          <Paper sx={{ p: 2, height: 300 }}>
+          <Paper sx={{ p: 2, height: 300 }} role="img" aria-label="Action distribution chart">
             <Typography variant="h6">Action Distribution</Typography>
-            <Pie data={pieData} options={{ ...chartBaseOptions, plugins: { legend: { position: 'right' } } }} />
+            {filteredLogs.length > 0 ? (
+              <Pie data={pieData} options={{ ...chartBaseOptions, plugins: { legend: { position: 'right' } } }} />
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 240 }}>
+                <Typography color="text.secondary">Not enough data</Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
         <Grid item md={3} xs={12}>
-          <Paper sx={{ p: 2, height: 300 }}>
+          <Paper sx={{ p: 2, height: 300 }} role="img" aria-label="User activity chart">
             <Typography variant="h6">User Activity</Typography>
-            <Bar data={barData} options={{ ...chartBaseOptions, plugins: { legend: { display: false } } }} />
+            {filteredLogs.length > 0 ? (
+              <Bar data={barData} options={{ ...chartBaseOptions, plugins: { legend: { display: false } } }} />
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 240 }}>
+                <Typography color="text.secondary">Not enough data</Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
       </Grid>
@@ -386,7 +560,7 @@ export default function AdminDashboard() {
         <TableContainer component={Paper}>
           <Table>
             <TableHead>
-              <TableRow>
+              <TableRow sx={{ bgcolor: 'action.hover' }}>
                 <TableCell>User</TableCell>
                 <TableCell>Caregiver</TableCell>
                 <TableCell>Action</TableCell>

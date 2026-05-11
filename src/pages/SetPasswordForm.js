@@ -15,6 +15,9 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'react-hot-toast';
 import { Visibility, VisibilityOff, LockOutlined, PersonOutlined, Check, Close } from '@mui/icons-material';
 
+const functions = getFunctions();
+const setUserPasswordFn = httpsCallable(functions, 'setUserPassword');
+
 export default function SetPasswordForm({ prefilledUid, onClose, onSuccess }) {
   const [uid, setUid] = useState(prefilledUid || '');
   const [newPassword, setNewPassword] = useState('');
@@ -25,10 +28,6 @@ export default function SetPasswordForm({ prefilledUid, onClose, onSuccess }) {
   const [success, setSuccess] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [passwordFeedback, setPasswordFeedback] = useState([]);
-  
-  // Initialize Functions + reference the onCall function
-  const functions = getFunctions();
-  const setUserPassword = httpsCallable(functions, 'setUserPassword');
 
   // If a UID is passed in as props, prefill it
   useEffect(() => {
@@ -37,35 +36,28 @@ export default function SetPasswordForm({ prefilledUid, onClose, onSuccess }) {
     }
   }, [prefilledUid]);
   
-  // Password validation criteria - defined outside useEffect to avoid dependency issues
-  const passwordCriteria = [
-    { label: "At least 8 characters", test: pwd => pwd.length >= 8 },
-    { label: "Contains lowercase letter", test: pwd => /[a-z]/.test(pwd) },
-    { label: "Contains uppercase letter", test: pwd => /[A-Z]/.test(pwd) },
-    { label: "Contains number", test: pwd => /\d/.test(pwd) },
-    { label: "Contains special character", test: pwd => /[^A-Za-z0-9]/.test(pwd) }
-  ];
-
-  // Evaluate password strength as password changes
   useEffect(() => {
     if (!newPassword) {
       setPasswordStrength(0);
       setPasswordFeedback([]);
       return;
     }
-    
-    // Check which criteria are met
-    const meetsArr = passwordCriteria.map(criteria => ({
-      label: criteria.label,
-      meets: criteria.test(newPassword)
+
+    const criteria = [
+      { label: "At least 8 characters", test: pwd => pwd.length >= 8 },
+      { label: "Contains lowercase letter", test: pwd => /[a-z]/.test(pwd) },
+      { label: "Contains uppercase letter", test: pwd => /[A-Z]/.test(pwd) },
+      { label: "Contains number", test: pwd => /\d/.test(pwd) },
+      { label: "Contains special character", test: pwd => /[^A-Za-z0-9]/.test(pwd) }
+    ];
+
+    const meetsArr = criteria.map(c => ({
+      label: c.label,
+      meets: c.test(newPassword)
     }));
-    
+
     setPasswordFeedback(meetsArr);
-    
-    // Calculate strength percentage (20% for each criterion met)
-    const strengthPercentage = (meetsArr.filter(item => item.meets).length / meetsArr.length) * 100;
-    setPasswordStrength(strengthPercentage);
-    
+    setPasswordStrength((meetsArr.filter(item => item.meets).length / meetsArr.length) * 100);
   }, [newPassword]);
 
   // Get color for password strength indicator
@@ -107,7 +99,7 @@ export default function SetPasswordForm({ prefilledUid, onClose, onSuccess }) {
     
     try {
       // Call the cloud function
-      const result = await setUserPassword({ uid, newPassword });
+      const result = await setUserPasswordFn({ uid, newPassword });
       
       // On success, the cloud function returns { message: 'Password updated successfully!' }
       setSuccess(true);
@@ -128,11 +120,8 @@ export default function SetPasswordForm({ prefilledUid, onClose, onSuccess }) {
           onClose();
         }, 1500);
       }
-    } catch (error) {
-      console.error('Error setting password:', error);
-      
-      // Extract error message from Firebase Functions response
-      const errorMessage = error.message || 'Unknown error occurred';
+    } catch (err) {
+      const errorMessage = err.message || 'Unknown error occurred';
       setError(`Error setting password: ${errorMessage}`);
       toast.error('Error setting password.');
     } finally {

@@ -4,26 +4,35 @@ const admin = require('firebase-admin');
 // Initialize the Admin SDK
 admin.initializeApp();
 
-// Existing function for setting user password via HTTPS callable
 exports.setUserPassword = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      ‘unauthenticated’,
+      ‘Must be logged in to change passwords’
+    );
+  }
+
+  const callerSnap = await admin.database().ref(`users/${context.auth.uid}/role`).once(‘value’);
+  if (callerSnap.val() !== ‘admin’) {
+    throw new functions.https.HttpsError(
+      ‘permission-denied’,
+      ‘Only admins can change user passwords’
+    );
+  }
+
   const { uid, newPassword } = data;
-  
-  // Validate input
   if (!uid || !newPassword) {
     throw new functions.https.HttpsError(
-      'invalid-argument',
-      'Missing uid or newPassword'
+      ‘invalid-argument’,
+      ‘Missing uid or newPassword’
     );
   }
 
   try {
-    // Attempt to update the user’s password
     await admin.auth().updateUser(uid, { password: newPassword });
-    return { message: 'Password updated successfully!' };
+    return { message: ‘Password updated successfully!’ };
   } catch (error) {
-    console.error('Error updating password:', error);
-    // Throw an HttpsError so that the client sees a proper error
-    throw new functions.https.HttpsError('internal', error.message);
+    throw new functions.https.HttpsError(‘internal’, error.message);
   }
 });
 
@@ -40,10 +49,8 @@ exports.syncUserToRealtimeDatabase = functions.auth.user().onCreate(async (user)
   };
 
   try {
-    // Write the user data to the "users" node, keyed by uid
     await admin.database().ref(`users/${uid}`).set(userData);
-    console.log(`User ${uid} added to realtime database.`);
   } catch (error) {
-    console.error('Error syncing user to realtime database:', error);
+    functions.logger.error('Error syncing user to realtime database:', error);
   }
 });
