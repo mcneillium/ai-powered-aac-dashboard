@@ -12,6 +12,11 @@ const admin = require("firebase-admin");
 
 admin.initializeApp();
 
+/**
+ * Whether the calling identity is an administrator.
+ * @param {object} auth The callable request auth context.
+ * @return {Promise<boolean>} True when the caller has the admin role.
+ */
 async function isAdmin(auth) {
   if (!auth) return false;
   if (auth.token && auth.token.role === "admin") return true;
