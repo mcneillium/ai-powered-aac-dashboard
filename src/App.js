@@ -30,7 +30,7 @@ function App() {
           <Route
             path="/admin"
             element={
-              <PrivateRoute>
+              <PrivateRoute requireAdmin>
                 <AdminDashboard />
               </PrivateRoute>
             }
@@ -65,7 +65,7 @@ function App() {
           <Route
             path="/finetune-metrics"
             element={
-              <PrivateRoute>
+              <PrivateRoute requireAdmin>
                 <FineTuneMetrics />
               </PrivateRoute>
             }
@@ -73,7 +73,7 @@ function App() {
           <Route
             path="/logs"
             element={
-              <PrivateRoute>
+              <PrivateRoute requireAdmin>
                 <Logs />
               </PrivateRoute>
             }
@@ -81,7 +81,7 @@ function App() {
           <Route
             path="/user-management"
             element={
-              <PrivateRoute>
+              <PrivateRoute requireAdmin>
                 <UserManagement />
               </PrivateRoute>
             }

@@ -4,8 +4,8 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Box, CircularProgress } from '@mui/material';
 
-export default function PrivateRoute({ children }) {
-  const { currentUser, loading } = useAuth();
+export default function PrivateRoute({ children, requireAdmin = false }) {
+  const { currentUser, isAdmin, loading } = useAuth();
 
   if (loading) {
     // still initializing auth → show spinner
@@ -23,10 +23,13 @@ export default function PrivateRoute({ children }) {
     );
   }
 
-  return currentUser ? (
-    children
-  ) : (
+  if (!currentUser) {
     // not logged in → redirect to login
-    <Navigate to="/login" replace />
-  );
+    return <Navigate to="/login" replace />;
+  }
+  if (requireAdmin && !isAdmin) {
+    // logged in but not an administrator → back to home
+    return <Navigate to="/home" replace />;
+  }
+  return children;
 }

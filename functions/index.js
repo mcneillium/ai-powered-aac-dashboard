@@ -1,39 +1,57 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * const {onCall}=require("firebase-functions/v2/https");
- * const {onDocumentWritten}=require("firebase-functions/v2/firestore");
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
+// Cloud Functions for the caregiver/admin dashboard.
+//
+// SECURITY: setUserPassword can change ANY user's password via the Admin
+// SDK, so it must only ever be callable by an authenticated administrator.
+// Admins are identified by the `role: "admin"` custom claim
+// (set via a one-off Admin SDK script) with a fallback to the
+// users/{uid}/role database value.
 
-const {onRequest}=require("firebase-functions/v2/https");
-const logger=require("firebase-functions/logger");
-const admin=require("firebase-admin");
-const cors=require("cors")({origin: true});
+const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const logger = require("firebase-functions/logger");
+const admin = require("firebase-admin");
 
 admin.initializeApp();
 
-exports.setUserPassword=onRequest((req, res)=>{
-  cors(req, res, ()=>{
-    // Only allow POST requests
-    if (req.method!=="POST") {
-      return res.status(405).send("Method Not Allowed");
-    }
-    const {uid, newPassword}=req.body;
-    if (!uid || !newPassword) {
-      return res.status(400).json({error: "Missing uid or newPassword"});
-    }
-    // Update the user's password using the Admin SDK
-    admin
-        .auth()
-        .updateUser(uid, {password: newPassword})
-        .then((userRecord)=>{
-          res.status(200).json({message: "Password updated successfully!"});
-        })
-        .catch((error)=>{
-          logger.error("Error updating password:", error);
-          res.status(500).json({error: error.message});
-        });
-  });
+async function isAdmin(auth) {
+  if (!auth) return false;
+  if (auth.token && auth.token.role === "admin") return true;
+  try {
+    const snap = await admin.database()
+        .ref(`users/${auth.uid}/role`).once("value");
+    return snap.val() === "admin";
+  } catch (err) {
+    logger.error("Admin role lookup failed:", err);
+    return false;
+  }
+}
+
+exports.setUserPassword = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in required.");
+  }
+  if (!(await isAdmin(request.auth))) {
+    throw new HttpsError("permission-denied", "Admin access required.");
+  }
+
+  const {uid, newPassword} = request.data || {};
+  if (typeof uid !== "string" || uid.length === 0 || uid.length > 128) {
+    throw new HttpsError("invalid-argument", "Invalid uid.");
+  }
+  if (typeof newPassword !== "string" || newPassword.length < 8 ||
+      newPassword.length > 256) {
+    throw new HttpsError(
+        "invalid-argument",
+        "Password must be between 8 and 256 characters.",
+    );
+  }
+
+  try {
+    await admin.auth().updateUser(uid, {password: newPassword});
+    logger.info(`Password updated for user by admin ${request.auth.uid}`);
+    return {message: "Password updated successfully!"};
+  } catch (error) {
+    logger.error("Error updating password:", error);
+    // Never echo raw Admin SDK errors to the client.
+    throw new HttpsError("internal", "Could not update password.");
+  }
 });
