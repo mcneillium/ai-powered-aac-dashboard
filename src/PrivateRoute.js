@@ -1,32 +1,34 @@
-// src/PrivateRoute.js
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Box, CircularProgress } from '@mui/material';
 
-export default function PrivateRoute({ children }) {
-  const { currentUser, loading } = useAuth();
+export default function PrivateRoute({ children, requiredRole }) {
+  const { currentUser, authReady, roleLoading, isAdmin } = useAuth();
 
-  if (loading) {
-    // still initializing auth → show spinner
+  if (!authReady) {
     return (
-      <Box
-        sx={{
-          height: '100vh',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}
-      >
+      <Box sx={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <CircularProgress />
       </Box>
     );
   }
 
-  return currentUser ? (
-    children
-  ) : (
-    // not logged in → redirect to login
-    <Navigate to="/login" replace />
-  );
+  if (!currentUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (roleLoading) {
+    return (
+      <Box sx={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (requiredRole === 'admin' && !isAdmin) {
+    return <Navigate to="/access-denied" replace />;
+  }
+
+  return children;
 }

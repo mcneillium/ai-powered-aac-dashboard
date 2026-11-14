@@ -1,90 +1,186 @@
 import React, { useState } from 'react';
-import { Container, TextField, Button, CircularProgress, Box } from '@mui/material';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import logo from '../assets/logo.png';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  Box,
+  TextField,
+  Button,
+  Typography,
+  Paper,
+  CircularProgress,
+  Alert,
+  Link
+} from '@mui/material';
+import { toast } from 'react-hot-toast';
+import { ref, get, set } from 'firebase/database';
+import { auth, db } from '../firebaseConfig';
+import { ROLES, DB_PATHS } from '../shared/schema';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [resetSent, setResetSent] = useState(false);
+  const { signIn } = useAuth();
   const navigate = useNavigate();
-  const auth = getAuth();
 
-  const handleLogin = async () => {
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError('Please enter both email and password.');
+      return;
+    }
     setLoading(true);
+    setError('');
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signIn(email, password);
       const user = userCredential.user;
 
-      const tokenResult = await user.getIdTokenResult();
-      const role = tokenResult.claims.role;
+      const roleSnap = await get(ref(db, `${DB_PATHS.USERS}/${user.uid}/role`));
+      let role = roleSnap.val();
 
-      if (role === 'admin') {
-        navigate('/admin');
-      } else if (role === 'caregiver') {
-        navigate('/caregiver');
-      } else {
-        navigate('/home');
+      if (!role) {
+        const usersSnap = await get(ref(db, DB_PATHS.USERS));
+        const isFirstUser = !usersSnap.exists() || !usersSnap.val();
+        role = isFirstUser ? ROLES.ADMIN : ROLES.CAREGIVER;
+
+        await set(ref(db, `${DB_PATHS.USERS}/${user.uid}`), {
+          email: user.email,
+          name: user.displayName || user.email,
+          role: role,
+          createdAt: Date.now()
+        });
+        toast.success(`Account set up as ${role}`);
       }
 
-    } catch (error) {
-      alert('Login error: ' + error.message);
-      console.error(error);
+      toast.success('Logged in successfully');
+      navigate(role === ROLES.ADMIN ? '/admin' : '/caregiver', { replace: true });
+    } catch (err) {
+      const msg = err.code === 'auth/invalid-credential'
+        ? 'Invalid email or password.'
+        : err.code === 'auth/too-many-requests'
+        ? 'Too many attempts. Please try again later.'
+        : err.message;
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Please enter your email address first.');
+      return;
+    }
+    setError('');
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetSent(true);
+      toast.success('Password reset email sent!');
+    } catch (err) {
+      const msg = err.code === 'auth/user-not-found'
+        ? 'No account found with this email.'
+        : 'Failed to send password reset email.';
+      setError(msg);
+    }
+  };
+
   return (
-    <Container maxWidth="sm" sx={{ mt: 8 }}>
-      <Box sx={{ textAlign: 'center', mb: 2 }}>
-        <img 
-          src={logo} 
-          alt="App Logo" 
-          style={{ width: '150px', height: 'auto', margin: '0 auto' }} 
-        />
-      </Box>
-      <Box component="form" noValidate sx={{ mt: 1 }}>
-        <TextField
-          label="Email"
-          fullWidth
-          margin="normal"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          type="email"
-          inputProps={{ 'data-testid': 'emailInput' }}
-          required
-        />
-        <TextField
-          label="Password"
-          fullWidth
-          margin="normal"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          type="password"
-          inputProps={{ 'data-testid': 'passwordInput' }}
-          required
-        />
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-            <CircularProgress />
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: 'background.default',
+        p: 2,
+      }}
+    >
+      <Paper
+        elevation={0}
+        sx={{
+          p: 5,
+          maxWidth: 420,
+          width: '100%',
+          borderRadius: 3,
+          border: 1,
+          borderColor: 'divider',
+        }}
+      >
+        <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Typography variant="h4" fontWeight={700} sx={{ color: 'primary.main', mb: 0.5 }}>
+            CommAI
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Caregiver & admin dashboard
+          </Typography>
+        </Box>
+
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {resetSent && <Alert severity="success" sx={{ mb: 2 }}>Password reset email sent. Check your inbox.</Alert>}
+
+        <Box component="form" onSubmit={handleLogin}>
+          <TextField
+            label="Email"
+            type="email"
+            fullWidth
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            sx={{ mb: 2 }}
+            autoFocus
+          />
+          <TextField
+            label="Password"
+            type="password"
+            fullWidth
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            sx={{ mb: 1 }}
+          />
+          <Box sx={{ textAlign: 'right', mb: 2 }}>
+            <Link
+              component="button"
+              type="button"
+              variant="body2"
+              onClick={handleForgotPassword}
+              sx={{ color: 'primary.main', fontSize: 13 }}
+            >
+              Forgot password?
+            </Link>
           </Box>
-        ) : (
           <Button
+            type="submit"
             variant="contained"
             fullWidth
-            onClick={handleLogin}
-            sx={{ mt: 2 }}
-            data-testid="loginButton"
+            size="large"
+            disabled={loading}
+            sx={{
+              py: 1.5,
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: 16,
+            }}
           >
-            Log In
+            {loading ? <CircularProgress size={24} color="inherit" /> : 'Sign in'}
           </Button>
-        )}
-        <Button fullWidth sx={{ mt: 2 }} onClick={() => navigate('/Signup')}>
-          Don't have an account? Sign Up
-        </Button>
-      </Box>
-    </Container>
+        </Box>
+
+        <Box sx={{ mt: 3, textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary">
+            Don't have an account?{' '}
+            <Link
+              component="button"
+              variant="body2"
+              onClick={() => navigate('/signup')}
+              sx={{ color: 'primary.main', fontWeight: 600 }}
+            >
+              Sign up
+            </Link>
+          </Typography>
+        </Box>
+      </Paper>
+    </Box>
   );
 }
