@@ -38,7 +38,10 @@ export default function TestSystem() {
       ]);
       setStats({
         users: usersSnap.exists() ? Object.keys(usersSnap.val()).length : 0,
-        logs: logsSnap.exists() ? Object.keys(logsSnap.val()).length : 0,
+        // userLogs/{uid}/{pushId}: count the entries, not the people.
+        logs: logsSnap.exists()
+          ? Object.values(logsSnap.val()).reduce((n, bucket) => n + Object.keys(bucket || {}).length, 0)
+          : 0,
         feedback: feedbackSnap.exists() ? Object.keys(feedbackSnap.val()).length : 0,
       });
     } catch {
@@ -58,7 +61,7 @@ export default function TestSystem() {
       return;
     }
     try {
-      await push(ref(db, DB_PATHS.USER_LOGS), {
+      await push(ref(db, `${DB_PATHS.USER_LOGS}/${currentUser.uid}`), {
         targetUserId: currentUser.uid,
         carerId: currentUser.uid,
         action: activityText || 'Test activity',

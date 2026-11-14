@@ -10,6 +10,9 @@ export async function logEvent(action, metadata = {}) {
   const targetUserId = metadata.targetUserId || (currentUser ? currentUser.uid : null);
   const carerId = currentUser ? currentUser.uid : null;
 
+  // The database rules reject any field they do not list ($other: false),
+  // so only these fields are sent. Anything else in metadata stays in the
+  // local backup below.
   const logEntry = {
     targetUserId,
     carerId,
@@ -17,11 +20,16 @@ export async function logEvent(action, metadata = {}) {
     timestamp: Date.now(),
     level: metadata.level || 'INFO',
     source: 'dashboard',
-    ...metadata
   };
+  ['sessionId', 'count', 'error'].forEach(field => {
+    if (metadata[field] !== undefined) logEntry[field] = metadata[field];
+  });
+  const localEntry = { ...logEntry, ...metadata };
 
+  // Written under the signed-in person's own userLogs/{uid}, the layout the
+  // app uses and the only one the database rules allow them to write.
   try {
-    await push(ref(db, DB_PATHS.USER_LOGS), logEntry);
+    if (carerId) await push(ref(db, `${DB_PATHS.USER_LOGS}/${carerId}`), logEntry);
   } catch {
     // Firebase write failed — fall through to localStorage backup
   }
@@ -29,7 +37,7 @@ export async function logEvent(action, metadata = {}) {
   try {
     const stored = localStorage.getItem('dashboardLogs');
     const logsArray = stored ? JSON.parse(stored) : [];
-    logsArray.push(logEntry);
+    logsArray.push(localEntry);
     if (logsArray.length > 200) logsArray.splice(0, logsArray.length - 200);
     localStorage.setItem('dashboardLogs', JSON.stringify(logsArray));
   } catch {
