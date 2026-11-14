@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { ref, get, query, orderByChild, limitToLast } from 'firebase/database';
+import { ref, get } from 'firebase/database';
+import { fetchRecentLogs } from '../utils/userLogs';
 import { db } from '../firebaseConfig';
 import {
   Container, Typography, Table, TableBody, TableCell,
@@ -61,31 +62,21 @@ export default function Logs() {
     setLoading(true);
     setError(null);
 
-    const logsQuery = query(
-      ref(db, DB_PATHS.USER_LOGS),
-      orderByChild('timestamp'),
-      limitToLast(500)
-    );
+    // Logs live under userLogs/{uid}. Admins read everyone; caregivers
+    // read the people linked to them.
+    const uids = isAdmin ? allUsers.map(u => u.id) : linkedUserIds;
 
-    get(logsQuery)
-      .then(snap => {
-        let arr = Object.entries(snap.val() || {})
-          .map(([id, log]) => ({ id, ...log }))
-          .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-        if (!isAdmin) {
-          arr = arr.filter(l => {
-            const uid = getLogUserId(l);
-            return uid && linkedUserIds.includes(uid);
-          });
-        }
-        setLogs(arr);
+    fetchRecentLogs(uids, { perUser: 500, total: 500 })
+      .then(({ logs: recent, failed }) => {
+        setLogs(recent);
+        if (failed > 0 && recent.length === 0) setError('Failed to load logs.');
       })
       .catch(() => {
         setLogs([]);
         setError('Failed to load logs.');
       })
       .finally(() => setLoading(false));
-  }, [isAdmin, authLoading, currentUser, linkedUserIds]);
+  }, [isAdmin, authLoading, currentUser, linkedUserIds, allUsers]);
 
   useEffect(() => {
     fetchLogs();

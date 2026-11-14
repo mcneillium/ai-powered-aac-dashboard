@@ -3,7 +3,7 @@
 export const DB_PATHS = {
   USERS: 'users',                    // users/{uid}
   USER_SETTINGS: 'userSettings',     // userSettings/{uid}
-  USER_LOGS: 'userLogs',            // userLogs/{pushId}
+  USER_LOGS: 'userLogs',            // userLogs/{uid}/{pushId} (since app commit ed2d27f, 2026-03-29)
   SESSIONS: 'sessions',             // sessions/{uid}/{sessionId}
   FEEDBACK: 'feedback',             // feedback/{uid}/{pushId}
   FINE_TUNE_METRICS: 'fineTuneMetrics', // fineTuneMetrics/{pushId}
@@ -50,7 +50,7 @@ export const SETTINGS_DEFAULTS = {
 };
 
 // ── Log Entry Schema ──
-// Path: userLogs/{pushId}
+// Path: userLogs/{uid}/{pushId}
 // The app writes logs with these fields:
 
 export const LOG_FIELDS = {

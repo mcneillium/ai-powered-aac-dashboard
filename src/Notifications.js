@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ref, onValue, query, orderByChild, limitToLast, off } from 'firebase/database';
+import { ref, get } from 'firebase/database';
+import { subscribeRecentLogs } from './utils/userLogs';
 import { db } from './firebaseConfig';
 import { useAuth } from './contexts/AuthContext';
 import { DB_PATHS } from './shared/schema';
@@ -56,24 +57,26 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const logsRef = ref(db, DB_PATHS.USER_LOGS);
-    const logsQuery = query(logsRef, orderByChild('timestamp'), limitToLast(50));
+    if (!currentUser) { setLoading(false); return undefined; }
+    let stop = () => {};
+    let cancelled = false;
 
-    const unsubscribe = onValue(logsQuery, (snap) => {
-      const data = snap.val() || {};
-      let arr = Object.entries(data)
-        .map(([id, log]) => ({ id, ...log }))
-        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-      if (!isAdmin && currentUser) {
-        arr = arr.filter(
-          (l) => l.carerId === currentUser.uid || l.targetUserId === currentUser.uid
-        );
-      }
-      setEvents(arr);
-      setLoading(false);
-    }, () => { setLoading(false); });
-    return () => { off(logsRef); unsubscribe(); };
+    // Logs live under userLogs/{uid}. Watch everyone for an admin; for a
+    // caregiver, their own entries plus the people linked to them.
+    get(ref(db, DB_PATHS.USERS))
+      .then((snap) => {
+        const users = Object.entries(snap.val() || {});
+        const uids = isAdmin
+          ? users.map(([id]) => id)
+          : [currentUser.uid, ...users.filter(([, u]) => u.caregiverId === currentUser.uid).map(([id]) => id)];
+        if (cancelled) return;
+        stop = subscribeRecentLogs(uids, (rows) => {
+          setEvents(rows);
+          setLoading(false);
+        }, { perUser: 50, total: 50, onError: () => setLoading(false) });
+      })
+      .catch(() => setLoading(false));
+    return () => { cancelled = true; stop(); };
   }, [isAdmin, currentUser]);
 
   if (loading) return <PageSkeleton />;

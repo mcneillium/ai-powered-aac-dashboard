@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ref, onValue, get, off } from 'firebase/database';
+import { userLogsPath, logsFromSnapshot, newestFirst } from '../utils/userLogs';
 import { db } from '../firebaseConfig';
 import {
   Container, Typography, Table, TableHead, TableRow, TableCell,
   TableBody, Paper, TableContainer, Button, Box, Chip, Card, CardContent, Grid, Alert
 } from '@mui/material';
-import { DB_PATHS, getUserDisplayName, getLogUserId, getLogCarerId } from '../shared/schema';
+import { DB_PATHS, getUserDisplayName, getLogCarerId } from '../shared/schema';
 import PageSkeleton from '../components/PageSkeleton';
 
 export default function UserActions() {
@@ -33,15 +34,12 @@ export default function UserActions() {
   }, []);
 
   useEffect(() => {
-    const logsRef = ref(db, DB_PATHS.USER_LOGS);
+    // This person's logs live under userLogs/{userId}.
+    const logsRef = ref(db, userLogsPath(userId));
     const unsubscribe = onValue(
       logsRef,
       (snapshot) => {
-        const data = snapshot.val() || {};
-        const logsArray = Object.entries(data)
-          .map(([id, log]) => ({ id, ...log }))
-          .filter(log => getLogUserId(log) === userId)
-          .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        const logsArray = newestFirst(logsFromSnapshot(userId, snapshot.val()));
         setLogs(logsArray);
         setLoading(false);
         setError(null);

@@ -1,6 +1,7 @@
 // src/pages/AdminDashboard.js
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { ref, get, query, orderByChild, limitToLast, onValue, off } from 'firebase/database';
+import { ref, get, onValue, off } from 'firebase/database';
+import { fetchRecentLogs } from '../utils/userLogs';
 import { db } from '../firebaseConfig';
 import { Link } from 'react-router-dom';
 import {
@@ -71,24 +72,22 @@ export default function AdminDashboard() {
     try {
       const snap = await get(ref(db, DB_PATHS.USERS));
       const data = snap.val() || {};
-      setAllUsers(Object.entries(data).map(([id, v]) => ({ id, ...v })));
+      const users = Object.entries(data).map(([id, v]) => ({ id, ...v }));
+      setAllUsers(users);
+      return users;
     } catch {
       setSnackbarMessage('Error loading users');
       setOpenSnackbar(true);
+      return [];
     }
   }, []);
 
-  const fetchLogs = useCallback(async () => {
-    try {
-      const snap = await get(
-        query(ref(db, DB_PATHS.USER_LOGS), orderByChild('timestamp'), limitToLast(200))
-      );
-      const arr = Object.entries(snap.val() || {})
-        .map(([id, v]) => ({ id, ...v }))
-        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-      setLogs(arr);
-    } catch {
-      setSnackbarMessage('Error loading logs');
+  // Logs live under userLogs/{uid}; read each person's most recent ones.
+  const fetchLogs = useCallback(async (users) => {
+    const { logs: recent, failed } = await fetchRecentLogs(users.map(u => u.id), { perUser: 200, total: 200 });
+    setLogs(recent);
+    if (failed > 0) {
+      setSnackbarMessage(`Could not load logs for ${failed} ${failed === 1 ? 'person' : 'people'}`);
       setOpenSnackbar(true);
     }
   }, []);
@@ -96,7 +95,7 @@ export default function AdminDashboard() {
   const refreshAll = useCallback(async () => {
     setRefreshing(true);
     setLoading(true);
-    await Promise.all([fetchUsers(), fetchLogs()]);
+    await fetchLogs(await fetchUsers());
     setLoading(false);
     setRefreshing(false);
   }, [fetchUsers, fetchLogs]);

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { ref, onValue, get, query, orderByChild, limitToLast, off } from 'firebase/database';
+import { ref, onValue, off } from 'firebase/database';
+import { fetchRecentLogs } from '../utils/userLogs';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -171,18 +172,9 @@ export default function CaregiverDashboard() {
 
   useEffect(() => {
     if (assignedUsers.length === 0) { setRecentLogs([]); return; }
-    const assignedUids = new Set(assignedUsers.map(u => u.uid));
-    get(query(ref(db, DB_PATHS.USER_LOGS), orderByChild('timestamp'), limitToLast(200)))
-      .then(snap => {
-        const all = Object.entries(snap.val() || {})
-          .map(([id, v]) => ({ id, ...v }))
-          .filter(l => {
-            const uid = getLogUserId(l);
-            return uid && assignedUids.has(uid);
-          })
-          .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-        setRecentLogs(all);
-      })
+    // Logs live under userLogs/{uid}; read each assigned person's.
+    fetchRecentLogs(assignedUsers.map(u => u.uid), { perUser: 200, total: 200 })
+      .then(({ logs }) => setRecentLogs(logs))
       .catch(() => setRecentLogs([]));
   }, [assignedUsers]);
 
