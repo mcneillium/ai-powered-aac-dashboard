@@ -49,7 +49,7 @@ Firebase settings are read in [`src/firebaseConfig.js`](src/firebaseConfig.js). 
 npx craco test --watchAll=false
 ```
 
-There are 19 tests, covering the shared data schema, login and app start-up. GitHub Actions runs them and a production build on every push.
+There are 30 tests in two suites, covering the shared data schema and app start-up. (A third file, `__tests__/Login.test.js`, sits outside `src/` and is not picked up by the test runner yet.) GitHub Actions runs them and a production build on every push.
 
 ## History
 
