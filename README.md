@@ -1,85 +1,56 @@
-# AI-Powered AAC Caregiver Dashboard
+# Voice caregiver dashboard
 
-This repository hosts the **Caregiver Dashboard** for the CommAI project, allowing caregivers to manage user logs, add or edit caregiver profiles, and monitor real-time data from the AAC app. It is built with [React](https://reactjs.org/) and was bootstrapped using [Create React App](https://github.com/facebook/create-react-app).
+A web dashboard for the people who support users of [Voice](https://github.com/mcneillium/ai-powered-aac-app), an AAC app for people who can't rely on speech. Caregivers can see how someone is communicating, manage their boards and favourites, and respond to alerts. Admins manage users, caregivers and system settings.
 
-## Getting Started with Create React App
+**[Try the demo](https://paulmartinmcneill.com/demos/aac-dashboard/#/admin)** (made-up people and data; nothing is saved) · **[Case study](https://paulmartinmcneill.com/projects/ai-aac-app/)**
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+![Admin dashboard: user, caregiver and activity counts, alerts by type, and a user-growth chart](docs/images/admin-demo.png)
 
-### Available Scripts
+## What it does
 
-In the project directory, you can run:
+**For caregivers**
+- **My users:** connect to a Voice user and see their recent activity.
+- **Logs:** what was said and when, with filters and CSV export.
+- **Custom boards:** build and edit boards for a user.
+- **Favourites:** see the phrases a user has saved.
+- **Alerts:** distress, inactivity and vocabulary-gap alerts, with unread counts.
 
-#### `npm start`
+**For admins**
+- Counts of users, caregivers, today's activity and alerts. Charts of user growth and an hour-by-day activity heatmap.
+- User and caregiver management, role-based access, feedback review and system settings.
 
-Runs the app in development mode.  
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Built with
 
-The page will reload when you make changes, and you may also see any lint errors in the console.
+React 18 (Create React App with CRACO), Material UI, Chart.js and React Router, on Firebase Authentication, Realtime Database and Cloud Functions.
 
-#### `npm test`
+## Status
 
-Launches the test runner in the interactive watch mode.  
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Version 0.2.0 is a working prototype, not a production service. Known gaps:
+- **Log layout.** The dashboard reads activity logs in an older layout than the current app writes. The fix is in draft pull request #3.
+- **Alerts and favourites.** These pages work, but the app doesn't feed them yet.
+- **Database rules.** The shared rules need a caregiver read tier before they can be deployed. [docs/DATA-CONTRACT.md](docs/DATA-CONTRACT.md) lists every database path and who reads and writes it.
 
-#### `npm run build`
+## Run it
 
-Builds the app for production to the `build` folder.  
-It correctly bundles React in production mode and optimizes the build for the best performance.
+You need Node 22 and npm.
 
-The build is minified and the filenames include the hashes.  
-Your app is ready to be deployed!
+```bash
+git clone https://github.com/mcneillium/ai-powered-aac-dashboard.git
+cd ai-powered-aac-dashboard
+npm ci
+npm start               # http://localhost:3000
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Firebase settings are read in [`src/firebaseConfig.js`](src/firebaseConfig.js). Point them at your own Firebase project.
 
-#### `npm run eject`
+## Tests
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+```bash
+npx craco test --watchAll=false
+```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+There are 19 tests, covering the shared data schema, login and app start-up. GitHub Actions runs them and a production build on every push.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc.) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point, you're on your own.
+## History
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and medium deployments, and you shouldn’t feel obligated to use this feature. However, we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).  
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
-
----
-
-## Project Overview
-
-**AI-Powered AAC Caregiver Dashboard** is designed to:
-- Allow caregivers to **log in** and securely manage user interactions.
-- Display or edit **caregiver profiles** and real-time data (logs, usage stats).
-- Provide a foundation for adding advanced analytics or AI-driven features in the future.
-
-For more details on how to set up Firebase or another backend, please consult the [documentation in the repository](./firebaseConfig.js) or [Firebase docs](https://firebase.google.com/docs).
-
-We hope this dashboard simplifies caregiver workflows and enhances accessibility for users of the AI-powered AAC system.
+The original Create React App README is kept at [docs/archive/README-CRA.md](docs/archive/README-CRA.md), with two old patch files that used to sit at the top level of the repository.
